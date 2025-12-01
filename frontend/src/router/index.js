@@ -33,5 +33,21 @@ export default defineRouter(function (/* { store, ssrContext } */) {
     history: createHistory(process.env.VUE_ROUTER_BASE),
   })
 
+  // Guard de navegación para proteger rutas autenticadas
+  Router.beforeEach((to, from, next) => {
+    const token = localStorage.getItem('token')
+
+    if (to.meta.requiresAuth && !token) {
+      // Si la ruta requiere autenticación y no hay token, redirigir al login
+      next('/login')
+    } else if ((to.path === '/' || to.path === '/login') && token) {
+      // Si el usuario ya está logueado y va al login, redirigir a main
+      next('/main')
+    } else {
+      // En otros casos, continuar normalmente
+      next()
+    }
+  })
+
   return Router
 })

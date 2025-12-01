@@ -5,48 +5,47 @@ const { body, validationResult } = require('express-validator');
 
 const db = new sqlite3.Database('./database.sqlite');
 
-// Validaciones para zapatos
+// Validaciones para zapatos con detalle
 const validateZapato = [
   body('marca').notEmpty().withMessage('La marca es requerida'),
   body('modelo').notEmpty().withMessage('El modelo es requerido'),
-  body('talla').isFloat({ min: 1 }).withMessage('La talla debe ser un número válido'),
-  body('precio').isFloat({ min: 0 }).withMessage('El precio debe ser mayor a 0'),
   body('estado').isIn(['nuevo', 'seminuevo', 'usado']).withMessage('Estado inválido'),
-  body('genero').isIn(['masculino', 'femenino', 'unisex']).withMessage('Género inválido'),
-  body('color').notEmpty().withMessage('El color es requerido'),
-  body('material').notEmpty().withMessage('El material es requerido')
+  body('talla').notEmpty().withMessage('La talla es requerida'),
+  body('cm').isFloat({ min: 0 }).withMessage('Los centímetros deben ser un número válido'),
+  body('precio_compra').isFloat({ min: 0 }).withMessage('El precio de compra debe ser mayor a 0'),
+  body('precio_venta').isFloat({ min: 0 }).withMessage('El precio de venta debe ser mayor a 0')
 ];
 
-// GET - Obtener todos los zapatos
+// GET - Obtener todos los zapatos con sus detalles
 router.get('/', (req, res) => {
-  const { page = 1, limit = 10, marca, estado, genero, minPrecio, maxPrecio } = req.query;
+  const { page = 1, limit = 10, marca, estado, minPrecio, maxPrecio } = req.query;
   const offset = (page - 1) * limit;
   
-  let query = 'SELECT * FROM zapato WHERE 1=1';
+  let query = `
+    SELECT z.*, zd.talla, zd.cm, zd.precio_compra, zd.precio_venta, zd.imagen 
+    FROM zapato z 
+    LEFT JOIN zapato_detalle zd ON z.id = zd.id_zapato 
+    WHERE 1=1
+  `;
   const params = [];
   
   if (marca) {
-    query += ' AND marca LIKE ?';
+    query += ' AND z.marca LIKE ?';
     params.push(`%${marca}%`);
   }
   
   if (estado) {
-    query += ' AND estado = ?';
+    query += ' AND z.estado = ?';
     params.push(estado);
   }
   
-  if (genero) {
-    query += ' AND genero = ?';
-    params.push(genero);
-  }
-  
   if (minPrecio) {
-    query += ' AND precio >= ?';
+    query += ' AND zd.precio_venta >= ?';
     params.push(minPrecio);
   }
   
   if (maxPrecio) {
-    query += ' AND precio <= ?';
+    query += ' AND zd.precio_venta <= ?';
     params.push(maxPrecio);
   }
   
@@ -103,28 +102,79 @@ router.get('/:id', (req, res) => {
   });
 });
 
-// POST - Crear nuevo zapato
-router.post('/', validateZapato, (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+// POST - Crear nuevo zapato con detalle
+router.post('/', (req, res) => {
+  const { marca, modelo, estado, talla, cm, precio_compra, precio_venta, imagen } = req.body;
+  
+  // Validaciones básicas para zapato
+  if (!marca || !modelo || !estado) {
+    return res.status(400).json({ 
+      message: 'Marca, modelo y estado son requeridos' 
+    });
   }
   
-  const { marca, modelo, talla, precio, estado, genero, color, material, descripcion } = req.body;
+  // Validaciones básicas para detalle
+  if (!talla || !cm || !precio_compra || !precio_venta) {
+    return res.status(400).json({ 
+      message: 'Talla, cm, precio_compra y precio_venta son requeridos' 
+    });
+  }
   
-  const query = `
-    INSERT INTO zapato (marca, modelo, talla, precio, estado, genero, color, material, descripcion, fecha_ingreso)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  // Validar estado
+  if (!['nuevo', 'seminuevo', 'usado'].includes(estado)) {
+    return res.status(400).json({ 
+      message: 'Estado debe ser: nuevo, seminuevo o usado' 
+    });
+  }
+  
+  // Primero insertar en tabla zapato
+  const zapatoQuery = `
+    INSERT INTO zapato (marca, modelo, estado, fecha_registro)
+    VALUES (?, ?, ?, datetime('now'))
   `;
   
-  db.run(query, [marca, modelo, talla, precio, estado, genero, color, material, descripcion || ''], function(err) {
+  db.run(zapatoQuery, [marca, modelo, estado], function(err) {
     if (err) {
-      return res.status(500).json({ message: 'Error al crear zapato', error: err.message });
+      return res.status(500).json({ 
+        message: 'Error al crear zapato', 
+        error: err.message 
+      });
     }
     
-    res.status(201).json({
-      message: 'Zapato creado exitosamente',
-      id: this.lastID
+    const zapatoId = this.lastID;
+    
+    // Luego insertar en tabla zapato_detalle
+    const detalleQuery = `
+      INSERT INTO zapato_detalle (id_zapato, talla, cm, precio_compra, precio_venta, imagen)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    
+    db.run(detalleQuery, [zapatoId, talla, cm, precio_compra, precio_venta, imagen || ''], function(err) {
+      if (err) {
+        return res.status(500).json({ 
+          message: 'Error al crear detalle del zapato', 
+          error: err.message 
+        });
+      }
+      
+      res.status(201).json({
+        message: 'Zapato creado exitosamente',
+        zapato: {
+          id: zapatoId,
+          marca,
+          modelo,
+          estado,
+          fecha_registro: new Date().toISOString(),
+          detalle: {
+            id: this.lastID,
+            talla,
+            cm,
+            precio_compra,
+            precio_venta,
+            imagen
+          }
+        }
+      });
     });
   });
 });

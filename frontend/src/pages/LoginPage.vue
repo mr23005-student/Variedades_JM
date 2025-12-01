@@ -99,9 +99,10 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useQuasar } from 'quasar'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 
-// const router = useRouter() // Para uso futuro
+const router = useRouter()
 const $q = useQuasar()
 
 // Estado reactivo
@@ -122,10 +123,15 @@ const handleLogin = async () => {
   successMessage.value = ''
 
   try {
-    await axios.post('http://localhost:3000/api/auth/login', {
+    const response = await axios.post('http://localhost:3000/api/auth/login', {
       username: credentials.username,
       password: credentials.password
     })
+
+    // Guardar token y usuario en localStorage
+    localStorage.setItem('token', response.data.token)
+    localStorage.setItem('username', response.data.user.username)
+    localStorage.setItem('userId', response.data.user.id)
 
     // Mostrar mensaje de éxito
     successMessage.value = `¡Bienvenido ${credentials.username}!`
@@ -135,17 +141,13 @@ const handleLogin = async () => {
       type: 'positive',
       message: `¡Bienvenido ${credentials.username}!`,
       position: 'top',
-      timeout: 3000
+      timeout: 2000
     })
 
-    // Limpiar formulario
-    credentials.username = ''
-    credentials.password = ''
-
-    // Aquí puedes redirigir al dashboard cuando esté listo
-    // setTimeout(() => {
-    //   router.push('/dashboard')
-    // }, 2000)
+    // Redirigir a la página principal después de un breve delay
+    setTimeout(() => {
+      router.push('/main')
+    }, 1500)
 
   } catch (error) {
     console.error('Error en login:', error)

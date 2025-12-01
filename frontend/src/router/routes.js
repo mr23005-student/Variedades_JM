@@ -5,10 +5,23 @@ const routes = [
     component: () => import('pages/LoginPage.vue'),
   },
 
+  // Ruta de login
+  {
+    path: '/login',
+    component: () => import('pages/LoginPage.vue'),
+  },
+
   // Ruta de registro
   {
     path: '/register',
     component: () => import('pages/RegisterPage.vue'),
+  },
+
+  // Página principal después del login
+  {
+    path: '/main',
+    component: () => import('pages/MainPage.vue'),
+    meta: { requiresAuth: true }
   },
 
   // Ruta del dashboard (para uso futuro)
