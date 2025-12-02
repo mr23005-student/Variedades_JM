@@ -48,9 +48,9 @@
             </q-item-section>
           </q-item>
 
-          <q-item clickable v-ripple @click="navigateTo('zapatos')">
+          <q-item clickable v-ripple @click="navigateTo('/inventario')">
             <q-item-section avatar>
-              <q-icon color="brown" name="👟" />
+              <q-icon color="brown" name="inventory_2" />
             </q-item-section>
             <q-item-section>
               <q-item-label>Inventario</q-item-label>

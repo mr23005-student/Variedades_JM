@@ -65,7 +65,7 @@ router.get('/estado/:estado', (req, res) => {
 
 // GET - Obtener todos los zapatos con sus detalles
 router.get('/', (req, res) => {
-  const { page = 1, limit = 10, marca, estado, minPrecio, maxPrecio } = req.query;
+  const { page = 1, limit = 10, search, marca, estado, minPrecio, maxPrecio } = req.query;
   const offset = (page - 1) * limit;
   
   let query = `
@@ -75,6 +75,13 @@ router.get('/', (req, res) => {
     WHERE 1=1
   `;
   const params = [];
+  
+  // Búsqueda general por marca, modelo o código
+  if (search) {
+    query += ' AND (z.marca LIKE ? OR z.modelo LIKE ? OR z.codigo LIKE ?)';
+    const searchTerm = `%${search}%`;
+    params.push(searchTerm, searchTerm, searchTerm);
+  }
   
   if (marca) {
     query += ' AND z.marca LIKE ?';
@@ -96,7 +103,7 @@ router.get('/', (req, res) => {
     params.push(maxPrecio);
   }
   
-  query += ' ORDER BY fecha_ingreso DESC LIMIT ? OFFSET ?';
+  query += ' ORDER BY z.fecha_registro DESC LIMIT ? OFFSET ?';
   params.push(parseInt(limit), offset);
   
   db.all(query, params, (err, zapatos) => {
@@ -105,14 +112,40 @@ router.get('/', (req, res) => {
     }
     
     // Contar total para paginación
-    const countQuery = 'SELECT COUNT(*) as total FROM zapato WHERE 1=1' + 
-      (marca ? ' AND marca LIKE ?' : '') +
-      (estado ? ' AND estado = ?' : '') +
-      (genero ? ' AND genero = ?' : '') +
-      (minPrecio ? ' AND precio >= ?' : '') +
-      (maxPrecio ? ' AND precio <= ?' : '');
+    let countQuery = `
+      SELECT COUNT(*) as total 
+      FROM zapato z 
+      LEFT JOIN zapato_detalle zd ON z.id = zd.id_zapato 
+      WHERE 1=1
+    `;
+    let countParams = [];
     
-    const countParams = params.slice(0, -2);
+    // Mismos filtros que la query principal pero sin LIMIT/OFFSET
+    if (search) {
+      countQuery += ' AND (z.marca LIKE ? OR z.modelo LIKE ? OR z.codigo LIKE ?)';
+      const searchTerm = `%${search}%`;
+      countParams.push(searchTerm, searchTerm, searchTerm);
+    }
+    
+    if (marca) {
+      countQuery += ' AND z.marca LIKE ?';
+      countParams.push(`%${marca}%`);
+    }
+    
+    if (estado) {
+      countQuery += ' AND z.estado = ?';
+      countParams.push(estado);
+    }
+    
+    if (minPrecio) {
+      countQuery += ' AND zd.precio_venta >= ?';
+      countParams.push(minPrecio);
+    }
+    
+    if (maxPrecio) {
+      countQuery += ' AND zd.precio_venta <= ?';
+      countParams.push(maxPrecio);
+    }
     
     db.get(countQuery, countParams, (err, count) => {
       if (err) {
