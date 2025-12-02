@@ -1,31 +1,35 @@
 <template>
-  <q-page padding>
-    <div class="row justify-center">
-      <div class="col-12 col-md-8 col-lg-6">
-        <q-card class="q-pa-lg shadow-10">
-          <!-- Header -->
-          <div class="row items-center q-mb-lg">
-            <q-btn
-              flat
-              round
-              dense
-              icon="arrow_back"
-              @click="$router.go(-1)"
-              class="q-mr-md"
-            />
-            <div>
-              <div class="text-h5 text-weight-bold text-primary">
-                <q-icon name="add_shopping_cart" class="q-mr-sm" />
-                Agregar Zapato
-              </div>
-              <div class="text-caption text-grey-7">
-                Completa la información del nuevo calzado
-              </div>
-            </div>
+  <q-layout view="hHh lpR fFf">
+    <!-- Header -->
+    <q-header elevated class="bg-gradient text-white">
+      <q-toolbar>
+        <q-btn
+          dense
+          flat
+          round
+          icon="arrow_back"
+          @click="$router.go(-1)"
+          class="q-mr-md"
+        />
+        <q-toolbar-title class="text-center">
+          <div class="flex items-center justify-center">
+            <q-icon name="add_shopping_cart" class="q-mr-sm" size="sm" />
+            Agregar Zapato
           </div>
+        </q-toolbar-title>
+        <q-space />
+      </q-toolbar>
+    </q-header>
+
+    <!-- Page Container -->
+    <q-page-container>
+      <q-page padding>
+        <div class="row justify-center">
+          <div class="col-12 col-md-8 col-lg-6">
+            <q-card class="q-pa-lg shadow-10">
 
           <!-- Formulario -->
-          <q-form @submit="agregarZapato" ref="form">
+          <q-form @submit="agregarZapato" ref="formRef">
             <div class="row q-col-gutter-md">
               <!-- Imagen del zapato -->
               <div class="col-12">
@@ -50,7 +54,7 @@
                       color="primary"
                       icon="folder_open"
                       label="Seleccionar Archivo"
-                      @click="$refs.fileInput.click()"
+                      @click="fileInputRef?.click()"
                       outline
                     />
 
@@ -66,7 +70,7 @@
 
                   <!-- Input file oculto -->
                   <input
-                    ref="fileInput"
+                    ref="fileInputRef"
                     type="file"
                     accept="image/*"
                     @change="onFileSelected"
@@ -341,7 +345,9 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
-  </q-page>
+      </q-page>
+    </q-page-container>
+  </q-layout>
 </template>
 
 <script>
@@ -385,8 +391,9 @@ export default {
       { label: 'Vendido', value: 'vendido' }
     ]
 
-    // Referencia al formulario
+    // Referencias
     const formRef = ref(null)
+    const fileInputRef = ref(null)
 
     // Generar código automático
     const generarCodigo = () => {
@@ -424,6 +431,7 @@ export default {
         const reader = new FileReader()
         reader.onload = (e) => {
           form.imagen = e.target.result
+          console.log('Imagen cargada:', e.target.result.substring(0, 50) + '...')
         }
         reader.readAsDataURL(file)
 
@@ -451,8 +459,12 @@ export default {
     }
 
     // Manejar error de imagen
-    const onImageError = () => {
-      form.imagen = imagenGenerica
+    const onImageError = (event) => {
+      console.log('Error cargando imagen:', event)
+      if (form.imagen !== imagenGenerica) {
+        console.log('Cambiando a imagen genérica')
+        form.imagen = imagenGenerica
+      }
     }
 
     // Agregar zapato
@@ -527,6 +539,7 @@ export default {
       form,
       estadosOptions,
       formRef,
+      fileInputRef,
 
       // Métodos
       generarCodigo,
@@ -572,6 +585,11 @@ export default {
 /* Estilo para campos requeridos */
 .q-field--outlined .q-field__control:before {
   border-color: #e0e0e0;
+}
+
+/* Header gradient */
+.bg-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 /* Responsive adjustments */
