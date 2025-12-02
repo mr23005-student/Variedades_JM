@@ -301,7 +301,7 @@ const quickActions = ref([
     description: 'Registrar cliente',
     icon: 'person_add',
     color: 'purple',
-    route: 'clientes'
+    route: '/agregar-cliente'
   },
   {
     name: 'Reserva',

@@ -31,6 +31,13 @@ const routes = [
     meta: { requiresAuth: true }
   },
 
+  // Página para agregar clientes
+  {
+    path: '/agregar-cliente',
+    component: () => import('pages/AddClient.vue'),
+    meta: { requiresAuth: true }
+  },
+
   // Ruta del dashboard (para uso futuro)
   {
     path: '/dashboard',
