@@ -10,13 +10,58 @@ const validateZapato = [
   body('marca').notEmpty().withMessage('La marca es requerida'),
   body('modelo').notEmpty().withMessage('El modelo es requerido'),
   body('codigo').optional().isLength({ min: 1 }).withMessage('El código debe tener al menos 1 carácter'),
-  body('estado').isIn(['nuevo', 'seminuevo', 'usado']).withMessage('Estado inválido'),
+  body('estado').isIn(['activo', 'reservado', 'vendido']).withMessage('Estado debe ser: activo, reservado o vendido'),
   body('talla').notEmpty().withMessage('La talla es requerida'),
   body('cm').isFloat({ min: 0 }).withMessage('Los centímetros deben ser un número válido'),
   body('precio_compra').isFloat({ min: 0 }).withMessage('El precio de compra debe ser mayor a 0'),
   body('precio_venta').isFloat({ min: 0 }).withMessage('El precio de venta debe ser mayor a 0'),
   body('precio_vendido').optional().isFloat({ min: 0 }).withMessage('El precio vendido debe ser mayor a 0')
 ];
+
+// GET - Obtener zapatos por estado específico
+router.get('/estado/:estado', (req, res) => {
+  const { estado } = req.params;
+  const { page = 1, limit = 10 } = req.query;
+  const offset = (page - 1) * limit;
+  
+  if (!['activo', 'reservado', 'vendido'].includes(estado)) {
+    return res.status(400).json({ message: 'Estado inválido. Debe ser: activo, reservado o vendido' });
+  }
+  
+  const query = `
+    SELECT z.*, zd.talla, zd.cm, zd.precio_compra, zd.precio_venta, zd.precio_vendido, zd.imagen
+    FROM zapato z
+    LEFT JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    WHERE z.estado = ?
+    ORDER BY z.fecha_registro DESC
+    LIMIT ? OFFSET ?
+  `;
+  
+  db.all(query, [estado, parseInt(limit), offset], (err, zapatos) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener zapatos', error: err.message });
+    }
+    
+    // Contar total para paginación
+    const countQuery = 'SELECT COUNT(*) as total FROM zapato WHERE estado = ?';
+    
+    db.get(countQuery, [estado], (err, count) => {
+      if (err) {
+        return res.status(500).json({ message: 'Error al contar zapatos', error: err.message });
+      }
+      
+      res.json({
+        zapatos,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: count.total,
+          pages: Math.ceil(count.total / limit)
+        }
+      });
+    });
+  });
+});
 
 // GET - Obtener todos los zapatos con sus detalles
 router.get('/', (req, res) => {
@@ -123,9 +168,9 @@ router.post('/', (req, res) => {
   }
   
   // Validar estado
-  if (!['nuevo', 'seminuevo', 'usado'].includes(estado)) {
+  if (!['activo', 'reservado', 'vendido'].includes(estado)) {
     return res.status(400).json({ 
-      message: 'Estado debe ser: nuevo, seminuevo o usado' 
+      message: 'Estado debe ser: activo, reservado o vendido' 
     });
   }
   
@@ -303,6 +348,124 @@ router.put('/:id/precio-vendido', (req, res) => {
     res.json({ 
       message: 'Precio vendido actualizado exitosamente',
       precio_vendido: precio_vendido
+    });
+  });
+});
+
+// PUT - Reservar zapato
+router.put('/:id/reservar', (req, res) => {
+  const { id } = req.params;
+  
+  // Verificar que el zapato está activo
+  db.get('SELECT estado FROM zapato WHERE id = ?', [id], (err, zapato) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al verificar zapato', error: err.message });
+    }
+    
+    if (!zapato) {
+      return res.status(404).json({ message: 'Zapato no encontrado' });
+    }
+    
+    if (zapato.estado !== 'activo') {
+      return res.status(400).json({ message: 'El zapato no está disponible para reservar' });
+    }
+    
+    // Actualizar estado a reservado
+    const query = 'UPDATE zapato SET estado = ? WHERE id = ?';
+    
+    db.run(query, ['reservado', id], function(err) {
+      if (err) {
+        return res.status(500).json({ message: 'Error al reservar zapato', error: err.message });
+      }
+      
+      res.json({ 
+        message: 'Zapato reservado exitosamente',
+        estado: 'reservado'
+      });
+    });
+  });
+});
+
+// PUT - Marcar zapato como vendido
+router.put('/:id/vender', (req, res) => {
+  const { id } = req.params;
+  const { precio_vendido } = req.body;
+  
+  if (!precio_vendido || precio_vendido <= 0) {
+    return res.status(400).json({ message: 'El precio vendido es requerido' });
+  }
+  
+  // Verificar que el zapato está activo o reservado
+  db.get('SELECT estado FROM zapato WHERE id = ?', [id], (err, zapato) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al verificar zapato', error: err.message });
+    }
+    
+    if (!zapato) {
+      return res.status(404).json({ message: 'Zapato no encontrado' });
+    }
+    
+    if (!['activo', 'reservado'].includes(zapato.estado)) {
+      return res.status(400).json({ message: 'El zapato no está disponible para vender' });
+    }
+    
+    // Actualizar estado a vendido y fecha de venta
+    const updateZapatoQuery = 'UPDATE zapato SET estado = ?, fecha_venta = datetime("now") WHERE id = ?';
+    
+    db.run(updateZapatoQuery, ['vendido', id], function(err) {
+      if (err) {
+        return res.status(500).json({ message: 'Error al marcar zapato como vendido', error: err.message });
+      }
+      
+      // Actualizar precio vendido en el detalle
+      const updateDetalleQuery = 'UPDATE zapato_detalle SET precio_vendido = ? WHERE id_zapato = ?';
+      
+      db.run(updateDetalleQuery, [precio_vendido, id], function(err) {
+        if (err) {
+          return res.status(500).json({ message: 'Error al actualizar precio vendido', error: err.message });
+        }
+        
+        res.json({ 
+          message: 'Zapato vendido exitosamente',
+          estado: 'vendido',
+          precio_vendido: precio_vendido,
+          fecha_venta: new Date().toISOString()
+        });
+      });
+    });
+  });
+});
+
+// PUT - Cancelar reserva (volver a activo)
+router.put('/:id/cancelar-reserva', (req, res) => {
+  const { id } = req.params;
+  
+  // Verificar que el zapato está reservado
+  db.get('SELECT estado FROM zapato WHERE id = ?', [id], (err, zapato) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al verificar zapato', error: err.message });
+    }
+    
+    if (!zapato) {
+      return res.status(404).json({ message: 'Zapato no encontrado' });
+    }
+    
+    if (zapato.estado !== 'reservado') {
+      return res.status(400).json({ message: 'El zapato no está reservado' });
+    }
+    
+    // Volver a estado activo
+    const query = 'UPDATE zapato SET estado = ? WHERE id = ?';
+    
+    db.run(query, ['activo', id], function(err) {
+      if (err) {
+        return res.status(500).json({ message: 'Error al cancelar reserva', error: err.message });
+      }
+      
+      res.json({ 
+        message: 'Reserva cancelada exitosamente',
+        estado: 'activo'
+      });
     });
   });
 });

@@ -294,7 +294,7 @@ const quickActions = ref([
     description: 'Nuevo producto',
     icon: 'add_box',
     color: 'blue',
-    route: 'zapatos'
+    route: '/agregar-zapato'
   },
   {
     name: 'Nuevo Cliente',
@@ -348,12 +348,18 @@ const getUserInitials = (username) => {
 }
 
 const navigateTo = (route) => {
-  Notify.create({
-    message: `Navegando a ${route}`,
-    color: 'info',
-    position: 'top'
-  })
-  // Aquí puedes implementar la navegación real cuando tengas las rutas
+  // Si la ruta empieza con '/', es una ruta absoluta
+  if (route.startsWith('/')) {
+    router.push(route)
+  } else {
+    // Para rutas relativas, mostrar notificación temporal
+    Notify.create({
+      message: `Navegando a ${route}`,
+      color: 'info',
+      position: 'top'
+    })
+    // Aquí puedes implementar la navegación real cuando tengas las rutas
+  }
 }
 
 const showNotifications = () => {

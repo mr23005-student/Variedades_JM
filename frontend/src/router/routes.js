@@ -24,6 +24,13 @@ const routes = [
     meta: { requiresAuth: true }
   },
 
+  // Página para agregar zapatos
+  {
+    path: '/agregar-zapato',
+    component: () => import('pages/AddShoe.vue'),
+    meta: { requiresAuth: true }
+  },
+
   // Ruta del dashboard (para uso futuro)
   {
     path: '/dashboard',

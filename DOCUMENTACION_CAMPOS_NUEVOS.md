@@ -21,6 +21,7 @@
 ```json
 {
   "codigo": "ZAP-001", // Opcional, único
+  "estado": "activo", // Requerido: activo, reservado, vendido
   "precio_vendido": 45000 // Opcional, para el detalle
 }
 ```
@@ -30,8 +31,17 @@
 ```json
 {
   "codigo": "ZAP-001",
+  "estado": "activo",
   "precio_vendido": 45000
 }
+```
+
+### GET `/api/zapatos/estado/:estado` - **NUEVO**: Filtrar por estado
+**Obtener zapatos por estado específico:**
+```
+GET /api/zapatos/estado/activo
+GET /api/zapatos/estado/reservado  
+GET /api/zapatos/estado/vendido
 ```
 
 ### GET `/api/zapatos/codigo/:codigo` - Buscar por código
@@ -43,8 +53,28 @@ GET /api/zapatos/codigo/ZAP-001
 ### GET `/api/zapatos/search/:term` - Búsqueda general
 **Ahora incluye búsqueda por código** además de marca y modelo.
 
+### PUT `/api/zapatos/:id/reservar` - **NUEVO**: Reservar zapato
+**Cambia estado de 'activo' a 'reservado':**
+```
+PUT /api/zapatos/123/reservar
+```
+
+### PUT `/api/zapatos/:id/vender` - **NUEVO**: Vender zapato
+**Cambia estado a 'vendido' y actualiza precio_vendido:**
+```json
+{
+  "precio_vendido": 45000
+}
+```
+
+### PUT `/api/zapatos/:id/cancelar-reserva` - **NUEVO**: Cancelar reserva
+**Cambia estado de 'reservado' a 'activo':**
+```
+PUT /api/zapatos/123/cancelar-reserva
+```
+
 ### PUT `/api/zapatos/:id/precio-vendido` - Actualizar precio vendido
-**Nuevo endpoint para actualizar el precio final de venta:**
+**Actualizar solo el precio final de venta:**
 ```json
 {
   "precio_vendido": 45000
@@ -58,6 +88,18 @@ GET /api/zapatos/codigo/ZAP-001
 2. **Control de inventario**: Facilita la identificación única
 3. **Etiquetado**: Se puede imprimir en etiquetas para los zapatos
 4. **Trazabilidad**: Permite seguimiento completo del producto
+
+### Campo `estado` (Actualizado)
+1. **activo**: Zapato disponible para venta
+2. **reservado**: Zapato apartado por un cliente
+3. **vendido**: Zapato ya vendido (no disponible)
+
+**Flujo de Estados:**
+```
+activo → reservado → vendido
+activo → vendido (venta directa)
+reservado → activo (cancelar reserva)
+```
 
 ### Campo `precio_vendido`
 1. **Registro de rebajas**: Cuando se aplican descuentos
