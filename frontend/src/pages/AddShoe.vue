@@ -123,7 +123,7 @@
                   label="Código"
                   outlined
                   placeholder="Ej: NIKE-AM-001"
-                  hint="Opcional - Se puede generar automáticamente"
+                  hint="Opcional - Haz clic en ✨ para generar automáticamente"
                 >
                   <template v-slot:prepend>
                     <q-icon name="qr_code" />
@@ -218,7 +218,7 @@
                   type="number"
                   outlined
                   min="0"
-                  step="1000"
+                  step="any"
                   :rules="[
                     val => !!val || 'El precio de compra es requerido',
                     val => val > 0 || 'Debe ser mayor a 0'
@@ -241,7 +241,7 @@
                   type="number"
                   outlined
                   min="0"
-                  step="1000"
+                  step="any"
                   :rules="[
                     val => !!val || 'El precio de venta es requerido',
                     val => val > 0 || 'Debe ser mayor a 0',
@@ -280,7 +280,7 @@
                   type="number"
                   outlined
                   min="0"
-                  step="1000"
+                  step="any"
                   hint="Solo llenar si ya se vendió con descuento"
                   :rules="[
                     val => !val || val > 0 || 'Debe ser mayor a 0'
@@ -397,10 +397,20 @@ export default {
 
     // Generar código automático
     const generarCodigo = () => {
-      const marca = form.marca.toUpperCase().substring(0, 3) || 'ZAP'
-      const modelo = form.modelo.toUpperCase().substring(0, 3) || 'MOD'
+      const marca = form.marca?.toUpperCase().replace(/\s+/g, '').substring(0, 3) || 'ZAP'
+      const modelo = form.modelo?.toUpperCase().replace(/\s+/g, '').substring(0, 3) || 'MOD'
       const timestamp = Date.now().toString().slice(-4)
-      form.codigo = `${marca}-${modelo}-${timestamp}`
+      const codigo = `${marca}-${modelo}-${timestamp}`
+      
+      form.codigo = codigo
+      
+      $q.notify({
+        type: 'positive',
+        message: `Código generado: ${codigo}`,
+        position: 'top'
+      })
+      
+      console.log('Código generado:', codigo)
     }
 
     // Manejar selección de archivo
