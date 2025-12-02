@@ -38,6 +38,20 @@ const routes = [
     meta: { requiresAuth: true }
   },
 
+  // Página de inventario
+  {
+    path: '/inventario',
+    component: () => import('pages/InventarioPage.vue'),
+    meta: { requiresAuth: true }
+  },
+
+  // Página para editar zapatos
+  {
+    path: '/editar-zapato/:id',
+    component: () => import('pages/EditShoe.vue'),
+    meta: { requiresAuth: true }
+  },
+
   // Ruta del dashboard (para uso futuro)
   {
     path: '/dashboard',
