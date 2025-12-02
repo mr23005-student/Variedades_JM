@@ -401,15 +401,15 @@ export default {
       const modelo = form.modelo?.toUpperCase().replace(/\s+/g, '').substring(0, 3) || 'MOD'
       const timestamp = Date.now().toString().slice(-4)
       const codigo = `${marca}-${modelo}-${timestamp}`
-      
+
       form.codigo = codigo
-      
+
       $q.notify({
         type: 'positive',
         message: `Código generado: ${codigo}`,
         position: 'top'
       })
-      
+
       console.log('Código generado:', codigo)
     }
 
