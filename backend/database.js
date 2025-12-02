@@ -18,7 +18,8 @@ const createTables = () => {
     modelo TEXT NOT NULL,
     estado TEXT NOT NULL,
     fecha_registro DATE NOT NULL,
-    fecha_venta DATE
+    fecha_venta DATE,
+    codigo TEXT
   )`;
 
   db.run(zapatoQuery, (err) => {
@@ -26,6 +27,15 @@ const createTables = () => {
       console.error('Error al crear la tabla zapato:', err.message);
     } else {
       console.log('Tabla "zapato" creada exitosamente.');
+      
+      // Crear índice único para el campo código
+      db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_zapato_codigo ON zapato(codigo)', (err) => {
+        if (err) {
+          console.error('Error al crear índice único para código:', err.message);
+        } else {
+          console.log('Índice único creado para el campo código.');
+        }
+      });
     }
   });
 
@@ -37,6 +47,7 @@ const createTables = () => {
     cm REAL NOT NULL,
     precio_compra REAL NOT NULL,
     precio_venta REAL NOT NULL,
+    precio_vendido REAL,
     imagen TEXT,
     FOREIGN KEY (id_zapato) REFERENCES zapato(id)
   )`;
