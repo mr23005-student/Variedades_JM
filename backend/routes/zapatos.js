@@ -5,17 +5,17 @@ const { body, validationResult } = require('express-validator');
 
 const db = new sqlite3.Database('./database.sqlite');
 
-// Validaciones para zapatos con detalle
+// Validaciones para zapatos con detalle - SIMPLIFICADAS PARA EDICIÓN
 const validateZapato = [
   body('marca').notEmpty().withMessage('La marca es requerida'),
   body('modelo').notEmpty().withMessage('El modelo es requerido'),
   body('codigo').optional().isLength({ min: 1 }).withMessage('El código debe tener al menos 1 carácter'),
   body('estado').isIn(['activo', 'reservado', 'vendido']).withMessage('Estado debe ser: activo, reservado o vendido'),
   body('talla').notEmpty().withMessage('La talla es requerida'),
-  body('cm').isFloat({ min: 0 }).withMessage('Los centímetros deben ser un número válido'),
-  body('precio_compra').isFloat({ min: 0 }).withMessage('El precio de compra debe ser mayor a 0'),
-  body('precio_venta').isFloat({ min: 0 }).withMessage('El precio de venta debe ser mayor a 0'),
-  body('precio_vendido').optional().isFloat({ min: 0 }).withMessage('El precio vendido debe ser mayor a 0')
+  body('cm').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Los centímetros deben ser un número válido'),
+  body('precio_compra').isNumeric().withMessage('El precio de compra debe ser numérico'),
+  body('precio_venta').isNumeric().withMessage('El precio de venta debe ser numérico'),
+  body('precio_vendido').optional({ nullable: true }).isNumeric().withMessage('El precio vendido debe ser numérico')
 ];
 
 // GET - Obtener zapatos por estado específico
@@ -169,7 +169,14 @@ router.get('/', (req, res) => {
 router.get('/:id', (req, res) => {
   const { id } = req.params;
   
-  db.get('SELECT * FROM zapato WHERE id = ?', [id], (err, zapato) => {
+  const query = `
+    SELECT z.*, zd.talla, zd.cm, zd.precio_compra, zd.precio_venta, zd.precio_vendido, zd.imagen
+    FROM zapato z
+    LEFT JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    WHERE z.id = ?
+  `;
+  
+  db.get(query, [id], (err, zapato) => {
     if (err) {
       return res.status(500).json({ message: 'Error al obtener zapato', error: err.message });
     }
@@ -262,32 +269,71 @@ router.post('/', (req, res) => {
 });
 
 // PUT - Actualizar zapato
-router.put('/:id', validateZapato, (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+router.put('/:id', (req, res) => {
+  // Validaciones manuales simples como en POST
+  const { marca, modelo, estado, talla, cm, precio_compra, precio_venta } = req.body;
+  
+  if (!marca || !modelo || !estado || !talla) {
+    return res.status(400).json({ 
+      message: 'Marca, modelo, estado y talla son requeridos' 
+    });
+  }
+  
+  if (!precio_compra || !precio_venta) {
+    return res.status(400).json({ 
+      message: 'Precio de compra y precio de venta son requeridos' 
+    });
   }
   
   const { id } = req.params;
-  const { marca, modelo, talla, precio, estado, genero, color, material, descripcion } = req.body;
+  const { codigo, precio_vendido, imagen } = req.body;
   
-  const query = `
-    UPDATE zapato SET
-    marca = ?, modelo = ?, talla = ?, precio = ?, estado = ?,
-    genero = ?, color = ?, material = ?, descripcion = ?
-    WHERE id = ?
-  `;
-  
-  db.run(query, [marca, modelo, talla, precio, estado, genero, color, material, descripcion || '', id], function(err) {
+  // Verificar que el zapato existe
+  db.get('SELECT id FROM zapato WHERE id = ?', [id], (err, zapato) => {
     if (err) {
-      return res.status(500).json({ message: 'Error al actualizar zapato', error: err.message });
+      return res.status(500).json({ message: 'Error al verificar zapato', error: err.message });
     }
     
-    if (this.changes === 0) {
+    if (!zapato) {
       return res.status(404).json({ message: 'Zapato no encontrado' });
     }
     
-    res.json({ message: 'Zapato actualizado exitosamente' });
+    // Actualizar tabla zapato
+    const zapatoQuery = `
+      UPDATE zapato SET
+      marca = ?, modelo = ?, codigo = ?, estado = ?
+      WHERE id = ?
+    `;
+    
+    db.run(zapatoQuery, [marca, modelo, codigo, estado, id], function(err) {
+      if (err) {
+        return res.status(500).json({ message: 'Error al actualizar zapato', error: err.message });
+      }
+      
+      // Primero eliminar detalles existentes
+      db.run('DELETE FROM zapato_detalle WHERE id_zapato = ?', [id], function(err) {
+        if (err) {
+          return res.status(500).json({ message: 'Error al eliminar detalles existentes', error: err.message });
+        }
+        
+        // Luego insertar los nuevos detalles
+        const detalleQuery = `
+          INSERT INTO zapato_detalle (id_zapato, talla, cm, precio_compra, precio_venta, precio_vendido, imagen)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
+        
+        db.run(detalleQuery, [id, talla, cm, precio_compra, precio_venta, precio_vendido || null, imagen || null], function(err) {
+          if (err) {
+            return res.status(500).json({ message: 'Error al actualizar detalles del zapato', error: err.message });
+          }
+          
+          res.json({ 
+            message: 'Zapato actualizado exitosamente',
+            id: id
+          });
+        });
+      });
+    });
   });
 });
 

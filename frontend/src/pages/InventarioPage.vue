@@ -8,7 +8,7 @@
           flat
           round
           icon="arrow_back"
-          @click="$router.go(-1)"
+          @click="$router.push('/main')"
           class="q-mr-md"
         />
         <q-toolbar-title class="text-center">
@@ -18,6 +18,16 @@
           </div>
         </q-toolbar-title>
         <q-space />
+        <q-btn
+          flat
+          round
+          dense
+          icon="home"
+          @click="$router.push('/main')"
+          class="text-white"
+        >
+          <q-tooltip>Ir al Menú Principal</q-tooltip>
+        </q-btn>
       </q-toolbar>
 
       <!-- Subtitle with counts -->
@@ -311,7 +321,40 @@
 
         <q-card-actions align="right">
           <q-btn flat label="Cerrar" v-close-popup />
+          <q-btn
+            color="negative"
+            outline
+            label="Eliminar"
+            @click="confirmDeleteShoe(selectedShoe)"
+          />
           <q-btn color="primary" label="Editar" @click="editShoe(selectedShoe)" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Delete Confirmation Dialog -->
+    <q-dialog v-model="showDeleteConfirm" persistent>
+      <q-card style="min-width: 300px">
+        <q-card-section>
+          <div class="text-h6 text-negative">
+            <q-icon name="warning" class="q-mr-sm" />
+            Confirmar Eliminación
+          </div>
+        </q-card-section>
+
+        <q-card-section v-if="shoeToDelete">
+          <div class="text-body2">
+            ¿Estás seguro de que quieres eliminar el zapato
+            <strong>"{{ shoeToDelete.marca }} {{ shoeToDelete.modelo }}"</strong>?
+          </div>
+          <div class="text-body2 text-negative q-mt-sm">
+            Esta acción no se puede deshacer.
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" class="text-primary">
+          <q-btn flat label="Cancelar" @click="cancelDelete" />
+          <q-btn flat label="Eliminar" color="negative" @click="executeDelete" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -320,12 +363,14 @@
 
 <script>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import axios from 'axios'
 
 export default {
   name: 'InventarioPage',
   setup() {
+    const router = useRouter()
     const $q = useQuasar()
 
     // Estado reactivo
@@ -335,6 +380,8 @@ export default {
     const itemsPerPage = ref(20)
     const totalItems = ref(0)
     const searchQuery = ref('')
+    const showDeleteConfirm = ref(false)
+    const shoeToDelete = ref(null)
     const showFilters = ref(false)
     const showShoeDetail = ref(false)
     const selectedShoe = ref(null)
@@ -468,14 +515,67 @@ export default {
 
     // Editar zapato
     const editShoe = (shoe) => {
-      // TODO: Implementar página de edición
-      console.log('Edit shoe:', shoe)
-      $q.notify({
-        type: 'info',
-        message: 'Función de edición próximamente',
-        position: 'top'
-      })
-      // Cuando implementemos: router.push(`/editar-zapato/${shoe.id}`)
+      console.log('Navigating to edit shoe:', shoe)
+      router.push(`/editar-zapato/${shoe.id}`)
+    }
+
+    // Confirmar eliminación de zapato
+    const confirmDeleteShoe = (shoe) => {
+      shoeToDelete.value = shoe
+      showDeleteConfirm.value = true
+    }
+
+    // Ejecutar eliminación
+    const executeDelete = () => {
+      if (shoeToDelete.value) {
+        deleteShoe(shoeToDelete.value)
+        showDeleteConfirm.value = false
+        shoeToDelete.value = null
+      }
+    }
+
+    // Cancelar eliminación
+    const cancelDelete = () => {
+      showDeleteConfirm.value = false
+      shoeToDelete.value = null
+    }
+
+    // Eliminar zapato
+    const deleteShoe = async (shoe) => {
+      loading.value = true
+
+      try {
+        await axios.delete(`http://localhost:3000/api/zapatos/${shoe.id}`)
+
+        $q.notify({
+          type: 'positive',
+          message: `Zapato "${shoe.marca} ${shoe.modelo}" eliminado exitosamente`,
+          position: 'top',
+          icon: 'check'
+        })
+
+        // Cerrar el modal
+        showShoeDetail.value = false
+
+        // Recargar la lista de zapatos
+        fetchShoes()
+
+      } catch (error) {
+        console.error('Error deleting shoe:', error)
+
+        const mensaje = error.response?.data?.message ||
+                       error.response?.data?.error ||
+                       'Error al eliminar zapato'
+
+        $q.notify({
+          type: 'negative',
+          message: mensaje,
+          position: 'top',
+          icon: 'error'
+        })
+      } finally {
+        loading.value = false
+      }
     }
 
     // Filtros
@@ -558,9 +658,16 @@ export default {
       getStatusColor,
       selectShoe,
       editShoe,
+      confirmDeleteShoe,
+      executeDelete,
+      cancelDelete,
       filterMarcas,
       clearFilters,
-      applyFilters
+      applyFilters,
+
+      // Delete dialog
+      showDeleteConfirm,
+      shoeToDelete
     }
   }
 }
