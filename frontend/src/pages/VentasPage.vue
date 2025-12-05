@@ -21,7 +21,7 @@
           <q-card class="beautiful-card q-mb-md">
             <q-card-section class="text-center q-pb-none">
               <div class="text-h4 text-weight-bold text-primary q-mb-md">
-                💰 Ventas y Reservaciones
+                Ventas y Reservaciones
               </div>
               <div class="text-h6 text-grey-7">Sistema de Gestión de Ventas</div>
             </q-card-section>
@@ -573,22 +573,21 @@ export default {
 }
 
 .page-background {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #f5f5f5;
   min-height: 100vh;
   padding: 0;
 }
 
 .beautiful-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
   transition: all 0.3s ease;
 }
 
 .beautiful-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 25px 50px rgba(0,0,0,0.15) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
 }
 
 .beautiful-table {
@@ -603,15 +602,15 @@ export default {
 }
 
 .beautiful-table tbody tr:hover {
-  background-color: rgba(102, 126, 234, 0.1);
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 .text-primary {
-  color: #667eea !important;
+  color: #424242 !important;
 }
 
 .text-accent {
-  color: #764ba2 !important;
+  color: #1976d2 !important;
 }
 
 .q-btn {
@@ -619,8 +618,8 @@ export default {
 }
 
 .q-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
 /* Animaciones de entrada */

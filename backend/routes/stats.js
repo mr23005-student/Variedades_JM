@@ -12,8 +12,8 @@ router.get('/', (req, res) => {
     // Consultas para obtener estadísticas
     const stats = {};
 
-    // Contar zapatos registrados (la tabla zapato no tiene campo stock, así que contamos todos)
-    db.get('SELECT COUNT(*) as totalZapatos FROM zapato', (err, row) => {
+    // Contar zapatos disponibles en stock (solo activos, excluyendo vendidos)
+    db.get('SELECT COUNT(*) as totalZapatos FROM zapato WHERE estado = "activo"', (err, row) => {
         if (err) {
             console.error('❌ Error obteniendo total de zapatos:', err.message);
             return res.status(500).json({ message: 'Error obteniendo estadísticas' });
