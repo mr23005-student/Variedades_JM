@@ -1,8 +1,92 @@
 const express = require('express');
 const router = express.Router();
 const sqlite3 = require('sqlite3').verbose();
+const { TIMEZONE_OFFSET_SECONDS } = require('../config/constants');
 
 const db = new sqlite3.Database('./database.sqlite');
+
+// GET - Ventas por día con detalle de zapatos y ganancias
+router.get('/ventas-por-dia/:fecha', (req, res) => {
+  const { fecha } = req.params;
+  console.log(`📅 Obteniendo ventas para fecha: ${fecha}`);
+
+  // Consulta para obtener todos los zapatos vendidos en una fecha específica
+  const queryZapatos = `
+    SELECT 
+      z.id,
+      z.marca,
+      z.modelo, 
+      zd.talla,
+      zd.precio_compra,
+      dv.precio_venta as precio_vendido,
+      (dv.precio_venta - zd.precio_compra) as ganancia,
+      c.nombre as cliente_nombre,
+      strftime('%H:%M', v.fecha) as hora_venta,
+      v.fecha as fecha_completa
+    FROM ventas v
+    JOIN detalle_ventas dv ON v.id = dv.venta_id
+    JOIN zapato z ON dv.zapato_id = z.id
+    JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    JOIN cliente c ON v.cliente_id = c.id
+    WHERE DATE(v.fecha) = ? 
+    AND (v.tipo = 'venta' OR dv.tipo = 'venta')
+    ORDER BY v.fecha DESC
+  `;
+
+  // Consulta para resumen del día
+  const queryResumen = `
+    SELECT 
+      COUNT(dv.id) as totalZapatos,
+      COALESCE(SUM(dv.precio_venta), 0) as totalVentas,
+      COALESCE(SUM(zd.precio_compra), 0) as totalInversion,
+      COALESCE(SUM(dv.precio_venta - zd.precio_compra), 0) as gananciaTotal
+    FROM ventas v
+    JOIN detalle_ventas dv ON v.id = dv.venta_id
+    JOIN zapato z ON dv.zapato_id = z.id
+    JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    WHERE DATE(v.fecha) = ?
+    AND (v.tipo = 'venta' OR dv.tipo = 'venta')
+  `;
+
+  // Ejecutar consulta de zapatos
+  db.all(queryZapatos, [fecha], (err, zapatos) => {
+    if (err) {
+      console.error('❌ Error obteniendo zapatos vendidos:', err);
+      return res.status(500).json({
+        success: false,
+        message: 'Error al obtener zapatos vendidos'
+      });
+    }
+
+    // Ejecutar consulta de resumen
+    db.get(queryResumen, [fecha], (err, resumen) => {
+      if (err) {
+        console.error('❌ Error obteniendo resumen:', err);
+        return res.status(500).json({
+          success: false,
+          message: 'Error al obtener resumen del día'
+        });
+      }
+
+      console.log(`✅ Encontrados ${zapatos.length} zapatos vendidos`);
+      console.log('📊 Resumen:', resumen);
+
+      res.json({
+        success: true,
+        data: {
+          fecha: fecha,
+          zapatos: zapatos || [],
+          resumen: resumen || {
+            totalZapatos: 0,
+            totalVentas: 0,
+            totalInversion: 0,
+            gananciaTotal: 0
+          }
+        }
+      });
+    });
+  });
+});
 
 // GET - Dashboard general
 router.get('/dashboard', (req, res) => {

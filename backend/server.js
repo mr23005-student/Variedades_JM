@@ -1,3 +1,6 @@
+// Configurar zona horaria ANTES de importar cualquier cosa
+process.env.TZ = 'America/El_Salvador';
+
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');

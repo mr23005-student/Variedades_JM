@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const sqlite3 = require('sqlite3').verbose();
+const { getLocalDateTime } = require('../config/constants');
 const path = require('path');
 
 const dbPath = path.join(__dirname, '../database.sqlite');
@@ -84,8 +85,8 @@ router.post('/', (req, res) => {
       const tipos = [...new Set(zapatos_data.map(z => z.tipo))];
       const tipoOperacion = tipos.length === 1 ? tipos[0] : 'mixta';
 
-      // Insertar la venta principal
-      const fechaActual = new Date().toISOString();
+      // Insertar la venta principal con hora local (El Salvador)
+      const fechaActual = getLocalDateTime();
       const insertVentaQuery = `
         INSERT INTO ventas (cliente_id, tipo, fecha, total, estado)
         VALUES (?, ?, ?, ?, 'activa')

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const sqlite3 = require('sqlite3').verbose();
+const { getLocalDateTime } = require('../config/constants');
 const { body, validationResult } = require('express-validator');
 
 const db = new sqlite3.Database('./database.sqlite');
@@ -252,7 +253,7 @@ router.post('/', (req, res) => {
           modelo,
           codigo,
           estado,
-          fecha_registro: new Date().toISOString(),
+          fecha_registro: getLocalDateTime(),
           detalle: {
             id: this.lastID,
             talla,
@@ -489,9 +490,9 @@ router.put('/:id/vender', (req, res) => {
     }
     
     // Actualizar estado a vendido y fecha de venta
-    const updateZapatoQuery = 'UPDATE zapato SET estado = ?, fecha_venta = datetime("now") WHERE id = ?';
+    const updateZapatoQuery = 'UPDATE zapato SET estado = ?, fecha_venta = ? WHERE id = ?';
     
-    db.run(updateZapatoQuery, ['vendido', id], function(err) {
+    db.run(updateZapatoQuery, ['vendido', getLocalDateTime(), id], function(err) {
       if (err) {
         return res.status(500).json({ message: 'Error al marcar zapato como vendido', error: err.message });
       }
@@ -508,7 +509,7 @@ router.put('/:id/vender', (req, res) => {
           message: 'Zapato vendido exitosamente',
           estado: 'vendido',
           precio_vendido: precio_vendido,
-          fecha_venta: new Date().toISOString()
+          fecha_venta: getLocalDateTime()
         });
       });
     });
