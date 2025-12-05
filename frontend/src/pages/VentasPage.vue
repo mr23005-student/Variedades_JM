@@ -133,6 +133,22 @@
                       borderless
                       @input="calcularTotal"
                       prefix="$"
+                      style="min-width: 80px"
+                    />
+                  </q-td>
+                </template>
+                <template v-slot:body-cell-tipo="props">
+                  <q-td :props="props">
+                    <q-select
+                      v-model="props.row.tipo_operacion"
+                      :options="[
+                        {label: 'Venta', value: 'venta'},
+                        {label: 'Reserva', value: 'reservacion'}
+                      ]"
+                      dense
+                      borderless
+                      emit-value
+                      map-options
                       style="min-width: 100px"
                     />
                   </q-td>
@@ -152,23 +168,21 @@
             </q-card-section>
           </q-card>
 
-          <!-- Tipo de operación y total -->
+          <!-- Total y Confirmación -->
           <q-card v-if="zapatosSeleccionados.length > 0" class="beautiful-card q-mb-md">
             <q-card-section>
               <div class="row q-gutter-lg items-center">
                 <div class="col-12 col-md-6">
-                  <div class="text-h6 text-primary q-mb-md">Tipo de Operación</div>
-                  <q-select
-                    v-model="tipoOperacion"
-                    :options="tiposOperacion"
-                    label="Selecciona una opción"
-                    outlined
-                    emit-value
-                    map-options
-                  />
+                  <div class="text-h6 text-primary q-mb-md">Resumen</div>
+                  <div class="text-body1">
+                    <strong>Ventas:</strong> {{ conteoVentas }} zapatos
+                  </div>
+                  <div class="text-body1">
+                    <strong>Reservaciones:</strong> {{ conteoReservaciones }} zapatos
+                  </div>
                 </div>
                 <div class="col-12 col-md-6 text-right">
-                  <div class="text-h6 text-primary q-mb-md">Total</div>
+                  <div class="text-h6 text-primary q-mb-md">Total General</div>
                   <div class="text-h4 text-weight-bold text-accent">
                     ${{ total.toFixed(2) }}
                   </div>
@@ -178,10 +192,10 @@
           </q-card>
 
           <!-- Botón Confirmar -->
-          <div v-if="zapatosSeleccionados.length > 0 && tipoOperacion" class="text-center">
+          <div v-if="zapatosSeleccionados.length > 0 && todosConTipo" class="text-center">
             <q-btn
               color="primary"
-              :label="`Confirmar ${tipoOperacion === 'venta' ? 'Venta' : 'Reservación'}`"
+              label="Confirmar Operación"
               size="lg"
               @click="confirmarVenta"
               :loading="procesandoVenta"
@@ -217,13 +231,6 @@ export default {
       zapatosSeleccionados: [],
       cargandoCalzado: false,
 
-      // Operación
-      tipoOperacion: null,
-      tiposOperacion: [
-        { label: 'Compra', value: 'venta' },
-        { label: 'Reserva', value: 'reservacion' }
-      ],
-
       // General
       total: 0,
       procesandoVenta: false,
@@ -231,16 +238,11 @@ export default {
       // Columnas de la tabla
       columns: [
         {
-          name: 'codigo',
-          label: 'Código',
-          align: 'left',
-          field: 'codigo'
-        },
-        {
           name: 'descripcion',
           label: 'Descripción',
           align: 'left',
-          field: 'descripcion'
+          field: 'descripcion',
+          style: 'max-width: 200px'
         },
         {
           name: 'talla',
@@ -250,15 +252,15 @@ export default {
         },
         {
           name: 'precio',
-          label: 'Precio Venta (c/u)',
+          label: 'Precio',
           align: 'center',
           field: 'precio_vendido'
         },
         {
-          name: 'total',
-          label: 'Total',
+          name: 'tipo',
+          label: 'Tipo',
           align: 'center',
-          field: row => `$${row.precio_vendido ? row.precio_vendido.toFixed(2) : '0.00'}`
+          field: 'tipo_operacion'
         },
         {
           name: 'acciones',
@@ -266,6 +268,21 @@ export default {
           align: 'center'
         }
       ]
+    }
+  },
+
+  computed: {
+    conteoVentas() {
+      return this.zapatosSeleccionados.filter(z => z.tipo_operacion === 'venta').length;
+    },
+
+    conteoReservaciones() {
+      return this.zapatosSeleccionados.filter(z => z.tipo_operacion === 'reservacion').length;
+    },
+
+    todosConTipo() {
+      return this.zapatosSeleccionados.length > 0 &&
+             this.zapatosSeleccionados.every(z => z.tipo_operacion);
     }
   },
 
@@ -387,7 +404,8 @@ export default {
           } else {
             this.zapatosSeleccionados.push({
               ...data.zapato,
-              precio_vendido: data.zapato.precio_venta || 0
+              precio_vendido: data.zapato.precio_venta || 0,
+              tipo_operacion: 'venta' // Tipo por defecto
             });
             this.$q.notify({
               type: 'positive',
@@ -445,23 +463,34 @@ export default {
           throw new Error('No se pudo obtener la información del cliente');
         }
 
+        // Validar datos de zapatos antes de enviar
+        for (let zapato of this.zapatosSeleccionados) {
+          if (!zapato.id) {
+            throw new Error('Zapato sin ID encontrado');
+          }
+          if (!zapato.precio_vendido || isNaN(parseFloat(zapato.precio_vendido))) {
+            throw new Error(`Precio inválido para zapato ${zapato.codigo}`);
+          }
+          if (!zapato.tipo_operacion) {
+            throw new Error(`Tipo de operación no seleccionado para zapato ${zapato.codigo}`);
+          }
+        }
+
         const zapatos_data = this.zapatosSeleccionados.map(zapato => ({
           zapato_id: zapato.id,
-          precio_vendido: parseFloat(zapato.precio_vendido)
+          precio_vendido: parseFloat(zapato.precio_vendido),
+          tipo: zapato.tipo_operacion
         }));
 
         const ventaData = {
           cliente_id: cliente.id,
-          tipo: this.tipoOperacion,
-          zapatos_data: zapatos_data,
-          total: this.total
+          zapatos_data: zapatos_data
         };
 
         console.log('Cliente:', cliente);
         console.log('Zapatos seleccionados:', this.zapatosSeleccionados);
         console.log('Zapatos data:', zapatos_data);
-        console.log('Tipo operación:', this.tipoOperacion);
-        console.log('Enviando datos de venta:', ventaData);
+        console.log('Enviando datos de venta:', JSON.stringify(ventaData, null, 2));
 
         const response = await fetch('http://localhost:3000/api/ventas', {
           method: 'POST',
@@ -484,10 +513,11 @@ export default {
           throw new Error(data.message || 'Error del servidor');
         }
       } catch (error) {
-        console.error('Error:', error);
+        console.error('Error completo:', error);
+        console.error('Error message:', error.message);
         this.$q.notify({
           type: 'negative',
-          message: 'Error al procesar la venta'
+          message: error.message || 'Error al procesar la venta'
         });
       }
       this.procesandoVenta = false;
@@ -518,7 +548,7 @@ export default {
         return false;
       }
 
-      // Validar que los zapatos tengan IDs
+      // Validar que los zapatos tengan IDs y tipos
       for (let zapato of this.zapatosSeleccionados) {
         if (!zapato.id) {
           this.$q.notify({
@@ -527,15 +557,14 @@ export default {
           });
           return false;
         }
-      }
 
-      // Validar tipo de operación
-      if (!this.tipoOperacion) {
-        this.$q.notify({
-          type: 'warning',
-          message: 'Seleccione el tipo de operación'
-        });
-        return false;
+        if (!zapato.tipo_operacion) {
+          this.$q.notify({
+            type: 'warning',
+            message: `Debe seleccionar el tipo de operación para "${zapato.descripcion || 'Sin descripción'}"`
+          });
+          return false;
+        }
       }
 
       // Validar precios
@@ -560,7 +589,6 @@ export default {
       this.nuevoCliente = { nombre: '', telefono: '' };
       this.codigoCalzado = '';
       this.zapatosSeleccionados = [];
-      this.tipoOperacion = null;
       this.total = 0;
     }
   }
