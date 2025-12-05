@@ -19,6 +19,7 @@ const reservasRoutes = require('./routes/reservas');
 const facturacionRoutes = require('./routes/facturacion');
 const reportesRoutes = require('./routes/reportes');
 const statsRoutes = require('./routes/stats');
+const ventasRoutes = require('./routes/ventas');
 
 dotenv.config();
 
@@ -55,6 +56,7 @@ app.use('/api/reservas', reservasRoutes);
 app.use('/api/facturacion', facturacionRoutes);
 app.use('/api/reportes', reportesRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/ventas', ventasRoutes);
 
 // Ruta base
 app.get('/', (req, res) => {
@@ -68,7 +70,8 @@ app.get('/', (req, res) => {
       reservas: '/api/reservas',
       facturacion: '/api/facturacion',
       reportes: '/api/reportes',
-      stats: '/api/stats'
+      stats: '/api/stats',
+      ventas: '/api/ventas'
     }
   });
 });
@@ -102,5 +105,6 @@ app.listen(PORT, () => {
   console.log(`   • Facturación: /api/facturacion`);
   console.log(`   • Reportes: /api/reportes`);
   console.log(`   • Estadísticas: /api/stats`);
+  console.log(`   • Ventas: /api/ventas`);
   console.log(`🔒 Rate limiting: 200 requests/15min por IP`);
 });

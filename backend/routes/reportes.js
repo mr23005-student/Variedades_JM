@@ -7,8 +7,8 @@ const db = new sqlite3.Database('./database.sqlite');
 // GET - Dashboard general
 router.get('/dashboard', (req, res) => {
   const queries = {
-    // Total de zapatos en inventario
-    totalZapatos: 'SELECT COUNT(*) as total FROM zapato',
+    // Total de zapatos en inventario (solo activos, excluyendo vendidos)
+    totalZapatos: 'SELECT COUNT(*) as total FROM zapato WHERE estado = "activo"',
     
     // Total de clientes
     totalClientes: 'SELECT COUNT(*) as total FROM cliente',
@@ -177,7 +177,7 @@ router.get('/inventario', (req, res) => {
       LIMIT 10
     `,
     
-    // Total del inventario
+    // Total del inventario (solo zapatos activos disponibles)
     valorTotal: `
       SELECT 
         COUNT(*) as total_zapatos,
@@ -186,6 +186,7 @@ router.get('/inventario', (req, res) => {
         MIN(precio) as precio_minimo,
         MAX(precio) as precio_maximo
       FROM zapato
+      WHERE estado = 'activo'
     `
   };
   
@@ -548,6 +549,35 @@ router.get('/exportar/:tipo', (req, res) => {
       tipo,
       total_registros: datos.length,
       datos
+    });
+  });
+});
+
+// GET - Verificar conteo de zapatos por estado
+router.get('/zapatos-por-estado', (req, res) => {
+  const query = `
+    SELECT 
+      estado,
+      COUNT(*) as cantidad,
+      ROUND(AVG(precio), 2) as precio_promedio,
+      SUM(precio) as valor_total
+    FROM zapato 
+    GROUP BY estado
+    ORDER BY cantidad DESC
+  `;
+  
+  db.all(query, [], (err, resultados) => {
+    if (err) {
+      return res.status(500).json({ 
+        message: 'Error al obtener conteo por estado', 
+        error: err.message 
+      });
+    }
+    
+    res.json({
+      success: true,
+      conteo_por_estado: resultados,
+      timestamp: new Date().toISOString()
     });
   });
 });

@@ -39,36 +39,17 @@
     <!-- Page Container -->
     <q-page-container>
       <q-page>
-        <!-- Search and Filter Controls -->
+        <!-- Filter Controls -->
         <div class="controls bg-grey-1 q-pa-md">
-          <div class="row q-col-gutter-md items-center">
-            <div class="col-9">
-              <q-input
-                v-model="searchQuery"
-                outlined
-                dense
-                placeholder="Buscar por marca, modelo, código..."
-                @input="debouncedSearch"
-                clearable
-                class="search-input"
-              >
-                <template v-slot:prepend>
-                  <q-icon name="search" color="primary" />
-                </template>
-              </q-input>
-            </div>
-            <div class="col-3">
-              <q-btn
-                color="primary"
-                outline
-                dense
-                icon="filter_list"
-                label="Filtrar"
-                @click="showFilters = true"
-                class="full-width"
-              />
-            </div>
-          </div>
+          <q-btn
+            color="primary"
+            outline
+            dense
+            icon="filter_list"
+            label="Filtrar"
+            @click="showFilters = true"
+            class="full-width"
+          />
         </div>
 
         <!-- Inventory Counter -->
@@ -150,13 +131,12 @@
           <div v-if="!loading && shoes.length === 0" class="text-center q-pa-xl">
             <q-icon name="inventory_2" size="4rem" color="grey-4" />
             <div class="text-h6 text-grey-6 q-mt-md">
-              {{ searchQuery ? 'No se encontraron zapatos' : 'No hay zapatos en inventario' }}
+              No hay zapatos en inventario
             </div>
             <div class="text-body2 text-grey-5 q-mt-xs">
-              {{ searchQuery ? 'Intenta con otros términos de búsqueda' : 'Agrega zapatos para comenzar' }}
+              Agrega zapatos para comenzar
             </div>
             <q-btn
-              v-if="!searchQuery"
               color="primary"
               label="Agregar Zapato"
               icon="add"
@@ -379,7 +359,6 @@ export default {
     const currentPage = ref(1)
     const itemsPerPage = ref(20)
     const totalItems = ref(0)
-    const searchQuery = ref('')
     const showDeleteConfirm = ref(false)
     const shoeToDelete = ref(null)
     const showFilters = ref(false)
@@ -415,15 +394,7 @@ export default {
       return Math.min(currentPage.value * itemsPerPage.value, totalItems.value)
     })
 
-    // Debounce para búsqueda
-    let searchTimeout = null
-    const debouncedSearch = () => {
-      if (searchTimeout) clearTimeout(searchTimeout)
-      searchTimeout = setTimeout(() => {
-        currentPage.value = 1
-        fetchShoes()
-      }, 300)
-    }
+
 
     // Cargar zapatos
     const fetchShoes = async () => {
@@ -435,10 +406,7 @@ export default {
           limit: itemsPerPage.value
         }
 
-        // Agregar búsqueda si existe
-        if (searchQuery.value.trim()) {
-          params.search = searchQuery.value.trim()
-        }
+
 
         // Agregar filtros
         if (filters.estado) params.estado = filters.estado
@@ -634,7 +602,6 @@ export default {
       currentPage,
       itemsPerPage,
       totalItems,
-      searchQuery,
       showFilters,
       showShoeDetail,
       selectedShoe,
@@ -650,7 +617,6 @@ export default {
       endItem,
 
       // Métodos
-      debouncedSearch,
       fetchShoes,
       changePage,
       handleImageError,

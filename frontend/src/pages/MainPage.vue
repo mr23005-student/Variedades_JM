@@ -74,17 +74,17 @@
             </q-item-section>
             <q-item-section>
               <q-item-label>Reservas</q-item-label>
-              <q-item-label caption>Apartados</q-item-label>
+              <q-item-label caption>Ver apartados</q-item-label>
             </q-item-section>
           </q-item>
 
-          <q-item clickable v-ripple @click="navigateTo('ventas')">
+          <q-item clickable v-ripple @click="navigateTo('/ventas')">
             <q-item-section avatar>
               <q-icon color="purple" name="attach_money" />
             </q-item-section>
             <q-item-section>
-              <q-item-label>Ventas</q-item-label>
-              <q-item-label caption>Facturación</q-item-label>
+              <q-item-label>Ventas y Reservas</q-item-label>
+              <q-item-label caption>Procesar operaciones</q-item-label>
             </q-item-section>
           </q-item>
 
@@ -284,10 +284,10 @@ const stats = ref({
 const quickActions = ref([
   {
     name: 'Nueva Venta',
-    description: 'Registrar venta',
+    description: 'Registrar venta/reserva',
     icon: 'add_shopping_cart',
     color: 'green',
-    route: 'ventas'
+    route: '/ventas'
   },
   {
     name: 'Agregar Zapato',
@@ -302,13 +302,6 @@ const quickActions = ref([
     icon: 'person_add',
     color: 'purple',
     route: '/agregar-cliente'
-  },
-  {
-    name: 'Reserva',
-    description: 'Crear apartado',
-    icon: 'bookmark_add',
-    color: 'orange',
-    route: 'reservas'
   }
 ])
 

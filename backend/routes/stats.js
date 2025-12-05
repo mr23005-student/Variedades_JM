@@ -12,8 +12,8 @@ router.get('/', (req, res) => {
     // Consultas para obtener estadísticas
     const stats = {};
 
-    // Contar zapatos registrados (la tabla zapato no tiene campo stock, así que contamos todos)
-    db.get('SELECT COUNT(*) as totalZapatos FROM zapato', (err, row) => {
+    // Contar zapatos disponibles en stock (solo activos, excluyendo vendidos)
+    db.get('SELECT COUNT(*) as totalZapatos FROM zapato WHERE estado = "activo"', (err, row) => {
         if (err) {
             console.error('❌ Error obteniendo total de zapatos:', err.message);
             return res.status(500).json({ message: 'Error obteniendo estadísticas' });
@@ -22,11 +22,14 @@ router.get('/', (req, res) => {
         stats.totalZapatos = row.totalZapatos || 0;
         console.log(`📊 Total zapatos en stock: ${stats.totalZapatos}`);
 
-        // Contar ventas de hoy
+        // Contar ventas individuales de hoy (zapatos vendidos, no operaciones)
         const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         
         db.get(
-            'SELECT COUNT(*) as ventasHoy FROM facturacion WHERE DATE(fecha) = ?', 
+            `SELECT COUNT(DISTINCT dv.id) as ventasHoy 
+             FROM detalle_ventas dv
+             JOIN ventas v ON dv.venta_id = v.id
+             WHERE DATE(v.fecha) = ? AND dv.tipo = 'venta'`, 
             [today], 
             (err, row) => {
                 if (err) {
@@ -39,7 +42,10 @@ router.get('/', (req, res) => {
 
                 // Obtener valor total de ventas de hoy
                 db.get(
-                    'SELECT COALESCE(SUM(total), 0) as totalVentasHoy FROM facturacion WHERE DATE(fecha) = ?',
+                    `SELECT COALESCE(SUM(dv.precio_venta), 0) as totalVentasHoy 
+                     FROM detalle_ventas dv
+                     JOIN ventas v ON dv.venta_id = v.id
+                     WHERE DATE(v.fecha) = ? AND dv.tipo = 'venta'`,
                     [today],
                     (err, row) => {
                         if (err) {
@@ -60,15 +66,21 @@ router.get('/', (req, res) => {
                             stats.totalClientes = row.totalClientes || 0;
                             console.log(`👥 Total clientes: ${stats.totalClientes}`);
 
-                            // Obtener total de reservas
-                            db.get('SELECT COUNT(*) as reservasPendientes FROM reservas', (err, row) => {
-                                if (err) {
-                                    console.error('❌ Error obteniendo reservas pendientes:', err.message);
-                                    return res.status(500).json({ message: 'Error obteniendo estadísticas' });
-                                }
+                            // Obtener total de reservas activas (todas las reservas, no solo del día)
+                            db.get(
+                                `SELECT COUNT(DISTINCT dv.id) as reservasPendientes 
+                                 FROM detalle_ventas dv
+                                 JOIN ventas v ON dv.venta_id = v.id
+                                 WHERE dv.tipo = 'reservacion' 
+                                 AND v.estado = 'activa'`, 
+                                (err, row) => {
+                                    if (err) {
+                                        console.error('❌ Error obteniendo reservas pendientes:', err.message);
+                                        return res.status(500).json({ message: 'Error obteniendo estadísticas' });
+                                    }
 
-                                stats.reservasPendientes = row.reservasPendientes || 0;
-                                console.log(`📋 Reservas pendientes: ${stats.reservasPendientes}`);
+                                    stats.reservasPendientes = row.reservasPendientes || 0;
+                                    console.log(`📋 Reservas totales activas: ${stats.reservasPendientes}`);
 
                                 console.log('✅ Estadísticas obtenidas exitosamente');
                                 console.log('=== FIN ESTADÍSTICAS ===');
@@ -92,24 +104,25 @@ router.get('/activity', (req, res) => {
     
     const activity = [];
     
-    // Últimas ventas
+    // Últimas ventas y reservas
     db.all(
-        `SELECT 'venta' as tipo, c.nombre as cliente, f.total, f.fecha as fecha
-         FROM facturacion f
-         JOIN cliente c ON f.id_cliente = c.id
-         ORDER BY f.fecha DESC 
+        `SELECT v.tipo, c.nombre as cliente, v.total, v.fecha
+         FROM ventas v
+         JOIN cliente c ON v.cliente_id = c.id
+         ORDER BY v.fecha DESC 
          LIMIT 3`,
         (err, rows) => {
             if (err) {
                 console.error('❌ Error obteniendo actividad de ventas:', err.message);
             } else {
                 rows.forEach(row => {
+                    const isVenta = row.tipo === 'venta' || row.tipo === 'mixta';
                     activity.push({
-                        id: `venta-${Date.now()}-${Math.random()}`,
-                        action: `Venta realizada - ${row.cliente} ($${row.total})`,
+                        id: `${row.tipo}-${Date.now()}-${Math.random()}`,
+                        action: `${isVenta ? 'Venta' : 'Reservación'} realizada - ${row.cliente} ($${row.total})`,
                         time: getTimeAgo(row.fecha),
-                        icon: 'shopping_cart',
-                        color: 'green'
+                        icon: isVenta ? 'shopping_cart' : 'bookmark',
+                        color: isVenta ? 'green' : 'orange'
                     });
                 });
             }
