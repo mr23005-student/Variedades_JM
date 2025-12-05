@@ -52,6 +52,19 @@ const routes = [
     meta: { requiresAuth: true }
   },
 
+  // Página de ventas - dentro del MainLayout
+  {
+    path: '/ventas',
+    component: () => import('layouts/MainLayout.vue'),
+    children: [
+      {
+        path: '',
+        component: () => import('pages/VentasPage.vue'),
+        meta: { requiresAuth: true }
+      },
+    ],
+  },
+
   // Ruta del dashboard (para uso futuro)
   {
     path: '/dashboard',

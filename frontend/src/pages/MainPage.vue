@@ -78,7 +78,7 @@
             </q-item-section>
           </q-item>
 
-          <q-item clickable v-ripple @click="navigateTo('ventas')">
+          <q-item clickable v-ripple @click="navigateTo('/ventas')">
             <q-item-section avatar>
               <q-icon color="purple" name="attach_money" />
             </q-item-section>
@@ -287,7 +287,7 @@ const quickActions = ref([
     description: 'Registrar venta',
     icon: 'add_shopping_cart',
     color: 'green',
-    route: 'ventas'
+    route: '/ventas'
   },
   {
     name: 'Agregar Zapato',
