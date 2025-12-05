@@ -103,34 +103,59 @@ router.post('/', (req, res) => {
         }
 
         const ventaId = this.lastID;
+        console.log(`💾 Venta creada con ID: ${ventaId}, procesando ${zapatos_data.length} zapatos`);
 
-        // Insertar los detalles de la venta y actualizar zapatos
-        let zapatosInsertados = 0;
-        let errorOcurrido = false;
+        // Procesar zapatos secuencialmente para evitar problemas de concurrencia
+        const procesarZapato = (index) => {
+          if (index >= zapatos_data.length) {
+            // Todos los zapatos procesados exitosamente
+            db.run("COMMIT", (err) => {
+              if (err) {
+                console.error('Error al confirmar transacción:', err);
+                db.close();
+                return res.status(500).json({ 
+                  success: false, 
+                  message: 'Error al confirmar la venta' 
+                });
+              }
 
-        zapatos_data.forEach((zapato_data) => {
+              console.log(`✅ Operación completada exitosamente. ${zapatos_data.length} zapatos procesados.`);
+              res.json({ 
+                success: true, 
+                message: `${tipoOperacion === 'venta' ? 'Venta' : tipoOperacion === 'reservacion' ? 'Reservación' : 'Operación mixta'} registrada exitosamente`,
+                ventaId: ventaId,
+                zapatosProcesados: zapatos_data.length
+              });
+              
+              db.close();
+            });
+            return;
+          }
+
+          const zapato_data = zapatos_data[index];
           const { zapato_id, precio_vendido, tipo } = zapato_data;
           const nuevoEstado = tipo === 'venta' ? 'vendido' : 'reservado';
 
-          // Insertar detalle de venta
+          console.log(`🔄 Procesando zapato ${index + 1}/${zapatos_data.length}: ID=${zapato_id}, tipo=${tipo}`);
+
+          // 1. Insertar detalle de venta
           const insertDetalleQuery = `
             INSERT INTO detalle_ventas (venta_id, zapato_id, precio_venta, tipo)
             VALUES (?, ?, ?, ?)
           `;
 
-          db.run(insertDetalleQuery, [ventaId, zapato_id, precio_vendido, tipo], (err) => {
-            if (err && !errorOcurrido) {
-              console.error('Error al insertar detalle de venta:', err);
-              errorOcurrido = true;
+          db.run(insertDetalleQuery, [ventaId, zapato_id, precio_vendido, tipo], function(err) {
+            if (err) {
+              console.error(`❌ Error al insertar detalle zapato ${index + 1}:`, err);
               db.run("ROLLBACK");
               db.close();
               return res.status(500).json({ 
                 success: false, 
-                message: 'Error al registrar los detalles de la venta' 
+                message: `Error al registrar zapato ${index + 1}` 
               });
             }
 
-            // Actualizar el zapato con precio_vendido y nuevo estado
+            // 2. Actualizar precio vendido en zapato_detalle
             const updateZapatoQuery = `
               UPDATE zapato_detalle 
               SET precio_vendido = ? 
@@ -138,18 +163,17 @@ router.post('/', (req, res) => {
             `;
 
             db.run(updateZapatoQuery, [precio_vendido, zapato_id], (err) => {
-              if (err && !errorOcurrido) {
-                console.error('Error al actualizar precio vendido:', err);
-                errorOcurrido = true;
+              if (err) {
+                console.error(`❌ Error al actualizar precio zapato ${index + 1}:`, err);
                 db.run("ROLLBACK");
                 db.close();
                 return res.status(500).json({ 
                   success: false, 
-                  message: 'Error al actualizar precio vendido' 
+                  message: `Error al actualizar precio del zapato ${index + 1}` 
                 });
               }
 
-              // Actualizar estado del zapato
+              // 3. Actualizar estado del zapato
               const updateEstadoQuery = `
                 UPDATE zapato 
                 SET estado = ?, fecha_venta = ? 
@@ -157,43 +181,26 @@ router.post('/', (req, res) => {
               `;
 
               db.run(updateEstadoQuery, [nuevoEstado, fechaActual, zapato_id], (err) => {
-                if (err && !errorOcurrido) {
-                  console.error('Error al actualizar estado del zapato:', err);
-                  errorOcurrido = true;
+                if (err) {
+                  console.error(`❌ Error al actualizar estado zapato ${index + 1}:`, err);
                   db.run("ROLLBACK");
                   db.close();
                   return res.status(500).json({ 
                     success: false, 
-                    message: 'Error al actualizar estado del zapato' 
+                    message: `Error al actualizar estado del zapato ${index + 1}` 
                   });
                 }
 
-                zapatosInsertados++;
-
-                if (zapatosInsertados === zapatos_data.length && !errorOcurrido) {
-                  db.run("COMMIT", (err) => {
-                    if (err) {
-                      console.error('Error al confirmar transacción:', err);
-                      db.close();
-                      return res.status(500).json({ 
-                        success: false, 
-                        message: 'Error al confirmar la venta' 
-                      });
-                    }
-
-                    res.json({ 
-                      success: true, 
-                      message: `${tipoOperacion === 'venta' ? 'Venta' : tipoOperacion === 'reservacion' ? 'Reservación' : 'Operación mixta'} registrada exitosamente`,
-                      ventaId: ventaId
-                    });
-                    
-                    db.close(); // Cerrar después de completar todas las operaciones
-                  });
-                }
+                console.log(`✅ Zapato ${index + 1} procesado exitosamente`);
+                // Procesar siguiente zapato
+                procesarZapato(index + 1);
               });
             });
           });
-        });
+        };
+
+        // Iniciar procesamiento secuencial
+        procesarZapato(0);
       });
     });
   });
