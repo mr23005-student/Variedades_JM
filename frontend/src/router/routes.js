@@ -51,6 +51,12 @@ const routes = [
     component: () => import('pages/EditShoe.vue'),
     meta: { requiresAuth: true }
   },
+  //Página para ver los reportes
+  {
+    path: '/reportes',
+    component: () => import('pages/ReportesPage.vue'),
+    meta: { requiresAuth: true }
+  },
 
   // Página de ventas - dentro del MainLayout
   {

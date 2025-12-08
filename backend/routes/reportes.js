@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const sqlite3 = require('sqlite3').verbose();
 const { TIMEZONE_OFFSET_SECONDS } = require('../config/constants');
+const PDFDocument = require('pdfkit');
 
 const db = new sqlite3.Database('./database.sqlite');
 
@@ -663,6 +664,173 @@ router.get('/zapatos-por-estado', (req, res) => {
       conteo_por_estado: resultados,
       timestamp: new Date().toISOString()
     });
+  });
+});
+
+// Ruta para reporte diario
+router.get('/diario/:fecha', (req, res) => {
+  const { fecha } = req.params;
+  const query = `
+    SELECT 
+      SUM(ventas_totales) as totalVentas,
+      COUNT(*) as totalReportes
+    FROM reportes
+    WHERE DATE(fecha) = ?`;
+
+  db.get(query, [fecha], (err, result) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener reporte diario', error: err.message });
+    }
+    res.json({ fecha, ...result });
+  });
+});
+
+// Ruta para reporte semanal
+router.get('/semanal/:fecha_inicio/:fecha_fin', (req, res) => {
+  const { fecha_inicio, fecha_fin } = req.params;
+  const query = `
+    SELECT 
+      DATE(fecha) as dia,
+      SUM(ventas) as totalVentas,
+      COUNT(*) as totalReportes
+    FROM reportes
+    WHERE DATE(fecha) BETWEEN ? AND ?
+    GROUP BY dia
+    ORDER BY dia ASC`;
+
+  db.all(query, [fecha_inicio, fecha_fin], (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener reporte semanal', error: err.message });
+    }
+    res.json({ fecha_inicio, fecha_fin, resultados: results });
+  });
+});
+
+// Ruta para reporte mensual
+router.get('/mensual/:mes/:año', (req, res) => {
+  const { mes, año } = req.params;
+  const query = `
+    SELECT 
+      DATE(fecha) as dia,
+      SUM(ventas) as totalVentas,
+      COUNT(*) as totalReportes
+    FROM reportes
+    WHERE strftime('%m', fecha) = ? AND strftime('%Y', fecha) = ?
+    GROUP BY dia
+    ORDER BY dia ASC`;
+
+  db.all(query, [mes, año], (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener reporte mensual', error: err.message });
+    }
+    res.json({ mes, año, resultados: results });
+  });
+});
+
+// Ruta para dashboard general
+router.get('/dashboard', (req, res) => {
+  const queries = {
+    totalVentas: 'SELECT SUM(ventas) as totalVentas FROM reportes',
+    totalReportes: 'SELECT COUNT(*) as totalReportes FROM reportes',
+  };
+
+  const results = {};
+  let completedQueries = 0;
+
+  Object.keys(queries).forEach((key) => {
+    db.get(queries[key], [], (err, result) => {
+      if (err) {
+        return res.status(500).json({ message: `Error al obtener ${key}`, error: err.message });
+      }
+
+      results[key] = result;
+      completedQueries++;
+
+      if (completedQueries === Object.keys(queries).length) {
+        res.json(results);
+      }
+    });
+  });
+});
+
+// Ruta para generar PDF de reporte diario
+router.get('/diario/:fecha/pdf', (req, res) => {
+  const { fecha } = req.params;
+  const query = `
+    SELECT 
+      SUM(ventas_totales) as totalVentas,
+      COUNT(*) as totalReportes
+    FROM reportes
+    WHERE DATE(fecha) = ?`;
+
+  db.get(query, [fecha], (err, result) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al generar PDF', error: err.message });
+    }
+
+    // Crear documento PDF
+    const doc = new PDFDocument();
+
+    // Configurar encabezados HTTP para el PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=reporte_diario_${fecha}.pdf`);
+
+    // Generar contenido del PDF
+    doc.fontSize(20).text('Reporte Diario', { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(14).text(`Fecha: ${fecha}`);
+    doc.moveDown();
+
+    if (result.totalVentas) {
+      doc.text(`Total de Ventas: $${result.totalVentas}`);
+      doc.text(`Total de Reportes: ${result.totalReportes}`);
+    } else {
+      doc.text('No se encontraron ventas para esta fecha.');
+    }
+
+    // Finalizar el PDF y enviarlo
+    doc.end();
+    doc.pipe(res);
+  });
+});
+
+// Ruta para datos de gráfica de ventas diarias
+router.get('/graficas/ventas-diarias/:mes/:año', (req, res) => {
+  const { mes, año } = req.params;
+  const query = `
+    SELECT 
+      DATE(fecha) as dia,
+      SUM(ventas_totales) as totalVentas
+    FROM reportes
+    WHERE strftime('%m', fecha) = ? AND strftime('%Y', fecha) = ?
+    GROUP BY dia
+    ORDER BY dia ASC`;
+
+  db.all(query, [mes, año], (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener datos de ventas diarias', error: err.message });
+    }
+    res.json({ mes, año, resultados: results });
+  });
+});
+
+// Ruta para datos de gráfica de ventas por categoría
+router.get('/graficas/ventas-categorias/:mes/:año', (req, res) => {
+  const { mes, año } = req.params;
+  const query = `
+    SELECT 
+      categoria,
+      SUM(ventas_totales) as totalVentas
+    FROM reportes
+    WHERE strftime('%m', fecha) = ? AND strftime('%Y', fecha) = ?
+    GROUP BY categoria
+    ORDER BY totalVentas DESC`;
+
+  db.all(query, [mes, año], (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener datos de ventas por categoría', error: err.message });
+    }
+    res.json({ mes, año, resultados: results });
   });
 });
 
