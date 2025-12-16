@@ -144,46 +144,51 @@ router.get('/ventas', (req, res) => {
   
   switch (grupo) {
     case 'dia':
-      groupBy = 'DATE(fecha_factura)';
-      selectDate = 'DATE(fecha_factura) as fecha';
+      groupBy = 'DATE(v.fecha)';
+      selectDate = 'DATE(v.fecha) as fecha';
       break;
     case 'mes':
-      groupBy = 'strftime("%Y-%m", fecha_factura)';
-      selectDate = 'strftime("%Y-%m", fecha_factura) as fecha';
+      groupBy = 'strftime("%Y-%m", v.fecha)';
+      selectDate = 'strftime("%Y-%m", v.fecha) as fecha';
       break;
     case 'año':
-      groupBy = 'strftime("%Y", fecha_factura)';
-      selectDate = 'strftime("%Y", fecha_factura) as fecha';
+      groupBy = 'strftime("%Y", v.fecha)';
+      selectDate = 'strftime("%Y", v.fecha) as fecha';
       break;
     default:
-      groupBy = 'DATE(fecha_factura)';
-      selectDate = 'DATE(fecha_factura) as fecha';
+      groupBy = 'DATE(v.fecha)';
+      selectDate = 'DATE(v.fecha) as fecha';
   }
   
   let query = `
     SELECT 
       ${selectDate},
-      COUNT(*) as total_ventas,
-      SUM(total) as total_ingresos,
-      SUM(descuento) as total_descuentos,
-      AVG(total) as promedio_venta,
-      SUM(CASE WHEN metodo_pago = 'efectivo' THEN total ELSE 0 END) as efectivo,
-      SUM(CASE WHEN metodo_pago = 'tarjeta' THEN total ELSE 0 END) as tarjeta,
-      SUM(CASE WHEN metodo_pago = 'transferencia' THEN total ELSE 0 END) as transferencia,
-      SUM(CASE WHEN metodo_pago = 'mixto' THEN total ELSE 0 END) as mixto
-    FROM facturacion
-    WHERE 1=1
+      COUNT(DISTINCT v.id) as total_ventas,
+      COALESCE(SUM(dv.precio_venta), 0) as total_ingresos,
+      COALESCE(SUM(zd.precio_compra), 0) as total_inversion,
+      COALESCE(SUM(dv.precio_venta - zd.precio_compra), 0) as total_ganancias,
+      0 as total_descuentos,
+      COALESCE(AVG(dv.precio_venta), 0) as promedio_venta,
+      COALESCE(SUM(dv.precio_venta), 0) as efectivo,
+      0 as tarjeta,
+      0 as transferencia,
+      0 as mixto
+    FROM ventas v
+    INNER JOIN detalle_ventas dv ON v.id = dv.venta_id
+    INNER JOIN zapato z ON dv.zapato_id = z.id
+    INNER JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    WHERE v.tipo = 'venta' AND v.estado = 'activa'
   `;
   
   const params = [];
   
   if (fecha_desde) {
-    query += ' AND DATE(fecha_factura) >= ?';
+    query += ' AND DATE(v.fecha) >= ?';
     params.push(fecha_desde);
   }
   
   if (fecha_hasta) {
-    query += ' AND DATE(fecha_factura) <= ?';
+    query += ' AND DATE(v.fecha) <= ?';
     params.push(fecha_hasta);
   }
   
@@ -191,13 +196,35 @@ router.get('/ventas', (req, res) => {
   
   db.all(query, params, (err, ventas) => {
     if (err) {
+      console.error('Error en consulta de ventas:', err.message);
       return res.status(500).json({ message: 'Error al generar reporte de ventas', error: err.message });
+    }
+    
+    // Si no hay datos, devolver estructura vacía
+    if (!ventas || ventas.length === 0) {
+      return res.json({
+        periodo: { fecha_desde, fecha_hasta, grupo },
+        datos: [],
+        totales: {
+          total_ventas: 0,
+          total_ingresos: 0,
+          total_inversion: 0,
+          total_ganancias: 0,
+          total_descuentos: 0,
+          efectivo: 0,
+          tarjeta: 0,
+          transferencia: 0,
+          mixto: 0
+        }
+      });
     }
     
     // Calcular totales generales
     const totales = ventas.reduce((acc, venta) => ({
-      total_ventas: acc.total_ventas + venta.total_ventas,
-      total_ingresos: acc.total_ingresos + venta.total_ingresos,
+      total_ventas: acc.total_ventas + (venta.total_ventas || 0),
+      total_ingresos: acc.total_ingresos + (venta.total_ingresos || 0),
+      total_inversion: acc.total_inversion + (venta.total_inversion || 0),
+      total_ganancias: acc.total_ganancias + (venta.total_ganancias || 0),
       total_descuentos: acc.total_descuentos + venta.total_descuentos,
       efectivo: acc.efectivo + venta.efectivo,
       tarjeta: acc.tarjeta + venta.tarjeta,
@@ -206,6 +233,8 @@ router.get('/ventas', (req, res) => {
     }), {
       total_ventas: 0,
       total_ingresos: 0,
+      total_inversion: 0,
+      total_ganancias: 0,
       total_descuentos: 0,
       efectivo: 0,
       tarjeta: 0,
@@ -463,33 +492,33 @@ router.get('/productos-mas-vendidos', (req, res) => {
   
   let query = `
     SELECT 
-      z.marca,
-      z.modelo,
-      z.talla,
-      z.color,
-      z.precio,
-      COUNT(f.id) as total_vendidos,
-      SUM(f.total) as ingresos_totales,
-      AVG(f.total) as precio_promedio_venta
+      UPPER(z.marca) as marca_normalizada,
+      z.marca as marca_original,
+      COUNT(DISTINCT v.id) as total_vendidos,
+      COALESCE(SUM(dv.precio_venta), 0) as ingresos_totales,
+      COALESCE(AVG(dv.precio_venta), 0) as precio_promedio_venta,
+      GROUP_CONCAT(DISTINCT z.modelo) as modelos
     FROM zapato z
-    INNER JOIN facturacion f ON z.id = f.zapato_id
-    WHERE 1=1
+    INNER JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    INNER JOIN detalle_ventas dv ON z.id = dv.zapato_id
+    INNER JOIN ventas v ON dv.venta_id = v.id
+    WHERE v.tipo = 'venta' AND v.estado = 'activa'
   `;
   
   const params = [];
   
   if (fecha_desde) {
-    query += ' AND DATE(f.fecha_factura) >= ?';
+    query += ' AND DATE(v.fecha) >= ?';
     params.push(fecha_desde);
   }
   
   if (fecha_hasta) {
-    query += ' AND DATE(f.fecha_factura) <= ?';
+    query += ' AND DATE(v.fecha) <= ?';
     params.push(fecha_hasta);
   }
   
   query += `
-    GROUP BY z.marca, z.modelo, z.talla, z.color
+    GROUP BY UPPER(z.marca)
     ORDER BY total_vendidos DESC, ingresos_totales DESC
     LIMIT ?
   `;
@@ -498,10 +527,12 @@ router.get('/productos-mas-vendidos', (req, res) => {
   
   db.all(query, params, (err, productos) => {
     if (err) {
+      console.error('Error en consulta de productos más vendidos:', err.message);
       return res.status(500).json({ message: 'Error al obtener productos más vendidos', error: err.message });
     }
     
-    res.json(productos);
+    // Si no hay productos vendidos, devolver array vacío
+    res.json(productos || []);
   });
 });
 
@@ -635,6 +666,188 @@ router.get('/exportar/:tipo', (req, res) => {
       total_registros: datos.length,
       datos
     });
+  });
+});
+
+// GET - Zapatos agregados por período
+router.get('/zapatos-agregados', (req, res) => {
+  const { fecha_desde, fecha_hasta } = req.query;
+  
+  let query = `
+    SELECT 
+      z.id,
+      z.marca,
+      z.modelo,
+      z.estado,
+      z.fecha_registro,
+      zd.talla,
+      zd.precio_compra,
+      zd.precio_venta
+    FROM zapato z
+    LEFT JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    WHERE 1=1
+  `;
+  
+  const params = [];
+  
+  if (fecha_desde) {
+    query += ' AND DATE(z.fecha_registro) >= ?';
+    params.push(fecha_desde);
+  }
+  
+  if (fecha_hasta) {
+    query += ' AND DATE(z.fecha_registro) <= ?';
+    params.push(fecha_hasta);
+  }
+  
+  query += ' ORDER BY z.fecha_registro DESC';
+  
+  db.all(query, params, (err, zapatos) => {
+    if (err) {
+      console.error('Error al obtener zapatos agregados:', err.message);
+      return res.status(500).json({ 
+        message: 'Error al obtener zapatos agregados', 
+        error: err.message 
+      });
+    }
+    
+    res.json(zapatos || []);
+  });
+});
+
+// GET - Clientes agregados por período
+router.get('/clientes-agregados', (req, res) => {
+  const { fecha_desde, fecha_hasta } = req.query;
+  
+  let query = `
+    SELECT 
+      id,
+      nombre,
+      apellido,
+      cedula,
+      telefono,
+      fecha_registro
+    FROM cliente
+    WHERE 1=1
+  `;
+  
+  const params = [];
+  
+  if (fecha_desde) {
+    query += ' AND DATE(fecha_registro) >= ?';
+    params.push(fecha_desde);
+  }
+  
+  if (fecha_hasta) {
+    query += ' AND DATE(fecha_registro) <= ?';
+    params.push(fecha_hasta);
+  }
+  
+  query += ' ORDER BY fecha_registro DESC';
+  
+  db.all(query, params, (err, clientes) => {
+    if (err) {
+      console.error('Error al obtener clientes agregados:', err.message);
+      return res.status(500).json({ 
+        message: 'Error al obtener clientes agregados', 
+        error: err.message 
+      });
+    }
+    
+    res.json(clientes || []);
+  });
+});
+
+// GET - Detalles de zapatos vendidos por período
+router.get('/zapatos-vendidos-detalle', (req, res) => {
+  const { fecha_desde, fecha_hasta } = req.query;
+  
+  let query = `
+    SELECT 
+      z.marca,
+      z.modelo,
+      zd.talla,
+      dv.precio_venta,
+      zd.precio_compra,
+      (dv.precio_venta - zd.precio_compra) as ganancia,
+      v.fecha as fecha_venta
+    FROM ventas v
+    INNER JOIN detalle_ventas dv ON v.id = dv.venta_id
+    INNER JOIN zapato z ON dv.zapato_id = z.id
+    INNER JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    WHERE v.tipo = 'venta' AND v.estado = 'activa'
+  `;
+  
+  const params = [];
+  
+  if (fecha_desde) {
+    query += ' AND DATE(v.fecha) >= ?';
+    params.push(fecha_desde);
+  }
+  
+  if (fecha_hasta) {
+    query += ' AND DATE(v.fecha) <= ?';
+    params.push(fecha_hasta);
+  }
+  
+  query += ' ORDER BY v.fecha DESC';
+  
+  db.all(query, params, (err, zapatos) => {
+    if (err) {
+      console.error('Error al obtener detalles de zapatos vendidos:', err.message);
+      return res.status(500).json({ 
+        message: 'Error al obtener detalles de zapatos vendidos', 
+        error: err.message 
+      });
+    }
+    
+    res.json(zapatos || []);
+  });
+});
+
+// GET - Reservas agregadas por período
+router.get('/reservas-agregadas', (req, res) => {
+  const { fecha_desde, fecha_hasta } = req.query;
+  
+  let query = `
+    SELECT 
+      r.id,
+      r.fecha_reserva,
+      r.fecha_limite,
+      r.monto_pagado,
+      c.nombre as cliente_nombre,
+      z.marca,
+      z.modelo
+    FROM reservas r
+    INNER JOIN cliente c ON r.id_cliente = c.id
+    INNER JOIN zapato z ON r.id_zapato = z.id
+    WHERE 1=1
+  `;
+  
+  const params = [];
+  
+  if (fecha_desde) {
+    query += ' AND DATE(r.fecha_reserva) >= ?';
+    params.push(fecha_desde);
+  }
+  
+  if (fecha_hasta) {
+    query += ' AND DATE(r.fecha_reserva) <= ?';
+    params.push(fecha_hasta);
+  }
+  
+  query += ' ORDER BY r.fecha_reserva DESC';
+  
+  db.all(query, params, (err, reservas) => {
+    if (err) {
+      console.error('Error al obtener reservas agregadas:', err.message);
+      return res.status(500).json({ 
+        message: 'Error al obtener reservas agregadas', 
+        error: err.message 
+      });
+    }
+    
+    res.json(reservas || []);
   });
 });
 
@@ -831,6 +1044,81 @@ router.get('/graficas/ventas-categorias/:mes/:año', (req, res) => {
       return res.status(500).json({ message: 'Error al obtener datos de ventas por categoría', error: err.message });
     }
     res.json({ mes, año, resultados: results });
+  });
+});
+
+// Ruta para guardar reportes mensuales
+router.post('/guardar', (req, res) => {
+  const { fecha, ventas_totales, datos } = req.body;
+
+  if (!fecha || !ventas_totales || !datos) {
+    return res.status(400).json({ message: 'Faltan datos requeridos para guardar el reporte.' });
+  }
+
+  const query = `INSERT INTO reportes (fecha, ventas_totales, datos, tipo) VALUES (?, ?, ?, 'mensual')`;
+  const params = [fecha, ventas_totales, JSON.stringify(datos)];
+
+  db.run(query, params, function (err) {
+    if (err) {
+      console.error('Error al guardar el reporte:', err.message);
+      return res.status(500).json({ message: 'Error al guardar el reporte.', error: err.message });
+    }
+
+    res.status(201).json({ message: 'Reporte guardado exitosamente.', id: this.lastID });
+  });
+});
+
+// GET - Años disponibles de reportes guardados
+router.get('/years-disponibles', (req, res) => {
+  const query = `
+    SELECT DISTINCT strftime('%Y', fecha) as año 
+    FROM reportes 
+    WHERE tipo = 'mensual' 
+    ORDER BY año DESC
+  `;
+
+  db.all(query, [], (err, results) => {
+    if (err) {
+      console.error('Error al obtener años disponibles:', err.message);
+      return res.status(500).json({ message: 'Error al obtener años disponibles', error: err.message });
+    }
+
+    const years = results.map(row => parseInt(row.año));
+    res.json(years);
+  });
+});
+
+// GET - Reportes guardados por año y mes
+router.get('/guardados', (req, res) => {
+  const { año, mes } = req.query;
+
+  if (!año || !mes) {
+    return res.status(400).json({ message: 'Se requieren año y mes' });
+  }
+
+  const query = `
+    SELECT 
+      id,
+      fecha,
+      ventas_totales,
+      datos,
+      tipo
+    FROM reportes 
+    WHERE strftime('%Y', fecha) = ? 
+    AND strftime('%m', fecha) = ?
+    AND tipo = 'mensual'
+    ORDER BY fecha DESC
+  `;
+
+  const params = [año.toString(), mes.toString().padStart(2, '0')];
+
+  db.all(query, params, (err, reportes) => {
+    if (err) {
+      console.error('Error al obtener reportes guardados:', err.message);
+      return res.status(500).json({ message: 'Error al obtener reportes guardados', error: err.message });
+    }
+
+    res.json(reportes || []);
   });
 });
 
