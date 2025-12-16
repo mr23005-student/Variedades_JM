@@ -81,7 +81,7 @@
 
         <!-- Inventario (calzado, clientes, reservas) -->
         <div class="row q-col-gutter-md q-mt-md">
-          <div class="col-12 col-md-4">
+          <div class="col-12 col-md-6">
             <q-card>
               <q-card-section>
                 <div class="text-h6">👟 Calzado Agregado</div>
@@ -90,16 +90,7 @@
             </q-card>
           </div>
 
-          <div class="col-12 col-md-4">
-            <q-card>
-              <q-card-section>
-                <div class="text-h6">👤 Clientes Agregados</div>
-                <div class="text-subtitle1">{{ clientsAdded }}</div>
-              </q-card-section>
-            </q-card>
-          </div>
-
-          <div class="col-12 col-md-4">
+          <div class="col-12 col-md-6">
             <q-card>
               <q-card-section>
                 <div class="text-h6">📅 Reservas Agregadas</div>
@@ -262,7 +253,6 @@ export default {
       topBrands: [],
       topBrandsData: [],
       footwearAdded: 0,
-      clientsAdded: 0,
       reservationsAdded: 0,
       soldShoes: [
         { marca: 'Marca A', talla: '42', precio: '$50', ganancia: '$20', fecha: '2025-12-15' },

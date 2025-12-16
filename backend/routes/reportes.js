@@ -815,13 +815,16 @@ router.get('/reservas-agregadas', (req, res) => {
       r.fecha_reserva,
       r.fecha_limite,
       r.monto_pagado,
+      r.estado,
       c.nombre as cliente_nombre,
       z.marca,
-      z.modelo
+      z.modelo,
+      zd.estado as zapato_estado
     FROM reservas r
     INNER JOIN cliente c ON r.id_cliente = c.id
     INNER JOIN zapato z ON r.id_zapato = z.id
-    WHERE 1=1
+    INNER JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    WHERE r.estado = 'activa'
   `;
   
   const params = [];
@@ -848,6 +851,67 @@ router.get('/reservas-agregadas', (req, res) => {
     }
     
     res.json(reservas || []);
+  });
+});
+
+// POST - Procesar reservas vencidas (liberar zapatos)
+router.post('/procesar-reservas-vencidas', (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Obtener reservas vencidas
+  const queryVencidas = `
+    SELECT r.*, z.id as zapato_id
+    FROM reservas r
+    INNER JOIN zapato z ON r.id_zapato = z.id
+    WHERE r.estado = 'activa' AND DATE(r.fecha_limite) < ?
+  `;
+  
+  db.all(queryVencidas, [today], (err, reservasVencidas) => {
+    if (err) {
+      console.error('Error al obtener reservas vencidas:', err.message);
+      return res.status(500).json({ message: 'Error al procesar reservas vencidas' });
+    }
+    
+    if (reservasVencidas.length === 0) {
+      return res.json({ message: 'No hay reservas vencidas para procesar', procesadas: 0 });
+    }
+    
+    // Actualizar estado de reservas vencidas
+    const updateReservas = `UPDATE reservas SET estado = 'vencida' WHERE id = ?`;
+    const updateZapatos = `UPDATE zapato_detalle SET estado = 'activo' WHERE id_zapato = ?`;
+    
+    let procesadas = 0;
+    let errores = 0;
+    
+    reservasVencidas.forEach((reserva, index) => {
+      // Actualizar reserva
+      db.run(updateReservas, [reserva.id], (err) => {
+        if (err) {
+          console.error(`Error actualizando reserva ${reserva.id}:`, err.message);
+          errores++;
+        } else {
+          // Actualizar zapato
+          db.run(updateZapatos, [reserva.zapato_id], (err) => {
+            if (err) {
+              console.error(`Error actualizando zapato ${reserva.zapato_id}:`, err.message);
+              errores++;
+            } else {
+              procesadas++;
+            }
+            
+            // Si es el último elemento, enviar respuesta
+            if (index === reservasVencidas.length - 1) {
+              res.json({
+                message: `Procesamiento completado. ${procesadas} reservas procesadas, ${errores} errores.`,
+                procesadas,
+                errores,
+                reservas_vencidas: reservasVencidas
+              });
+            }
+          });
+        }
+      });
+    });
   });
 });
 
