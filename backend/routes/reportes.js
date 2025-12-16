@@ -494,7 +494,7 @@ router.get('/productos-mas-vendidos', (req, res) => {
     SELECT 
       UPPER(z.marca) as marca_normalizada,
       z.marca as marca_original,
-      COUNT(DISTINCT v.id) as total_vendidos,
+      COUNT(*) as total_vendidos,
       COALESCE(SUM(dv.precio_venta), 0) as ingresos_totales,
       COALESCE(AVG(dv.precio_venta), 0) as precio_promedio_venta,
       GROUP_CONCAT(DISTINCT z.modelo) as modelos
