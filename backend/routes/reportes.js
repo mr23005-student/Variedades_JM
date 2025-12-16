@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const sqlite3 = require('sqlite3').verbose();
 const { TIMEZONE_OFFSET_SECONDS } = require('../config/constants');
+const PDFDocument = require('pdfkit');
 
 const db = new sqlite3.Database('./database.sqlite');
 
@@ -143,46 +144,51 @@ router.get('/ventas', (req, res) => {
   
   switch (grupo) {
     case 'dia':
-      groupBy = 'DATE(fecha_factura)';
-      selectDate = 'DATE(fecha_factura) as fecha';
+      groupBy = 'DATE(v.fecha)';
+      selectDate = 'DATE(v.fecha) as fecha';
       break;
     case 'mes':
-      groupBy = 'strftime("%Y-%m", fecha_factura)';
-      selectDate = 'strftime("%Y-%m", fecha_factura) as fecha';
+      groupBy = 'strftime("%Y-%m", v.fecha)';
+      selectDate = 'strftime("%Y-%m", v.fecha) as fecha';
       break;
     case 'año':
-      groupBy = 'strftime("%Y", fecha_factura)';
-      selectDate = 'strftime("%Y", fecha_factura) as fecha';
+      groupBy = 'strftime("%Y", v.fecha)';
+      selectDate = 'strftime("%Y", v.fecha) as fecha';
       break;
     default:
-      groupBy = 'DATE(fecha_factura)';
-      selectDate = 'DATE(fecha_factura) as fecha';
+      groupBy = 'DATE(v.fecha)';
+      selectDate = 'DATE(v.fecha) as fecha';
   }
   
   let query = `
     SELECT 
       ${selectDate},
-      COUNT(*) as total_ventas,
-      SUM(total) as total_ingresos,
-      SUM(descuento) as total_descuentos,
-      AVG(total) as promedio_venta,
-      SUM(CASE WHEN metodo_pago = 'efectivo' THEN total ELSE 0 END) as efectivo,
-      SUM(CASE WHEN metodo_pago = 'tarjeta' THEN total ELSE 0 END) as tarjeta,
-      SUM(CASE WHEN metodo_pago = 'transferencia' THEN total ELSE 0 END) as transferencia,
-      SUM(CASE WHEN metodo_pago = 'mixto' THEN total ELSE 0 END) as mixto
-    FROM facturacion
-    WHERE 1=1
+      COUNT(DISTINCT v.id) as total_ventas,
+      COALESCE(SUM(dv.precio_venta), 0) as total_ingresos,
+      COALESCE(SUM(zd.precio_compra), 0) as total_inversion,
+      COALESCE(SUM(dv.precio_venta - zd.precio_compra), 0) as total_ganancias,
+      0 as total_descuentos,
+      COALESCE(AVG(dv.precio_venta), 0) as promedio_venta,
+      COALESCE(SUM(dv.precio_venta), 0) as efectivo,
+      0 as tarjeta,
+      0 as transferencia,
+      0 as mixto
+    FROM ventas v
+    INNER JOIN detalle_ventas dv ON v.id = dv.venta_id
+    INNER JOIN zapato z ON dv.zapato_id = z.id
+    INNER JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    WHERE v.tipo = 'venta' AND v.estado = 'activa'
   `;
   
   const params = [];
   
   if (fecha_desde) {
-    query += ' AND DATE(fecha_factura) >= ?';
+    query += ' AND DATE(v.fecha) >= ?';
     params.push(fecha_desde);
   }
   
   if (fecha_hasta) {
-    query += ' AND DATE(fecha_factura) <= ?';
+    query += ' AND DATE(v.fecha) <= ?';
     params.push(fecha_hasta);
   }
   
@@ -190,13 +196,35 @@ router.get('/ventas', (req, res) => {
   
   db.all(query, params, (err, ventas) => {
     if (err) {
+      console.error('Error en consulta de ventas:', err.message);
       return res.status(500).json({ message: 'Error al generar reporte de ventas', error: err.message });
+    }
+    
+    // Si no hay datos, devolver estructura vacía
+    if (!ventas || ventas.length === 0) {
+      return res.json({
+        periodo: { fecha_desde, fecha_hasta, grupo },
+        datos: [],
+        totales: {
+          total_ventas: 0,
+          total_ingresos: 0,
+          total_inversion: 0,
+          total_ganancias: 0,
+          total_descuentos: 0,
+          efectivo: 0,
+          tarjeta: 0,
+          transferencia: 0,
+          mixto: 0
+        }
+      });
     }
     
     // Calcular totales generales
     const totales = ventas.reduce((acc, venta) => ({
-      total_ventas: acc.total_ventas + venta.total_ventas,
-      total_ingresos: acc.total_ingresos + venta.total_ingresos,
+      total_ventas: acc.total_ventas + (venta.total_ventas || 0),
+      total_ingresos: acc.total_ingresos + (venta.total_ingresos || 0),
+      total_inversion: acc.total_inversion + (venta.total_inversion || 0),
+      total_ganancias: acc.total_ganancias + (venta.total_ganancias || 0),
       total_descuentos: acc.total_descuentos + venta.total_descuentos,
       efectivo: acc.efectivo + venta.efectivo,
       tarjeta: acc.tarjeta + venta.tarjeta,
@@ -205,6 +233,8 @@ router.get('/ventas', (req, res) => {
     }), {
       total_ventas: 0,
       total_ingresos: 0,
+      total_inversion: 0,
+      total_ganancias: 0,
       total_descuentos: 0,
       efectivo: 0,
       tarjeta: 0,
@@ -462,33 +492,33 @@ router.get('/productos-mas-vendidos', (req, res) => {
   
   let query = `
     SELECT 
-      z.marca,
-      z.modelo,
-      z.talla,
-      z.color,
-      z.precio,
-      COUNT(f.id) as total_vendidos,
-      SUM(f.total) as ingresos_totales,
-      AVG(f.total) as precio_promedio_venta
+      UPPER(z.marca) as marca_normalizada,
+      z.marca as marca_original,
+      COUNT(*) as total_vendidos,
+      COALESCE(SUM(dv.precio_venta), 0) as ingresos_totales,
+      COALESCE(AVG(dv.precio_venta), 0) as precio_promedio_venta,
+      GROUP_CONCAT(DISTINCT z.modelo) as modelos
     FROM zapato z
-    INNER JOIN facturacion f ON z.id = f.zapato_id
-    WHERE 1=1
+    INNER JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    INNER JOIN detalle_ventas dv ON z.id = dv.zapato_id
+    INNER JOIN ventas v ON dv.venta_id = v.id
+    WHERE v.tipo = 'venta' AND v.estado = 'activa'
   `;
   
   const params = [];
   
   if (fecha_desde) {
-    query += ' AND DATE(f.fecha_factura) >= ?';
+    query += ' AND DATE(v.fecha) >= ?';
     params.push(fecha_desde);
   }
   
   if (fecha_hasta) {
-    query += ' AND DATE(f.fecha_factura) <= ?';
+    query += ' AND DATE(v.fecha) <= ?';
     params.push(fecha_hasta);
   }
   
   query += `
-    GROUP BY z.marca, z.modelo, z.talla, z.color
+    GROUP BY UPPER(z.marca)
     ORDER BY total_vendidos DESC, ingresos_totales DESC
     LIMIT ?
   `;
@@ -497,10 +527,12 @@ router.get('/productos-mas-vendidos', (req, res) => {
   
   db.all(query, params, (err, productos) => {
     if (err) {
+      console.error('Error en consulta de productos más vendidos:', err.message);
       return res.status(500).json({ message: 'Error al obtener productos más vendidos', error: err.message });
     }
     
-    res.json(productos);
+    // Si no hay productos vendidos, devolver array vacío
+    res.json(productos || []);
   });
 });
 
@@ -637,6 +669,252 @@ router.get('/exportar/:tipo', (req, res) => {
   });
 });
 
+// GET - Zapatos agregados por período
+router.get('/zapatos-agregados', (req, res) => {
+  const { fecha_desde, fecha_hasta } = req.query;
+  
+  let query = `
+    SELECT 
+      z.id,
+      z.marca,
+      z.modelo,
+      z.estado,
+      z.fecha_registro,
+      zd.talla,
+      zd.precio_compra,
+      zd.precio_venta
+    FROM zapato z
+    LEFT JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    WHERE 1=1
+  `;
+  
+  const params = [];
+  
+  if (fecha_desde) {
+    query += ' AND DATE(z.fecha_registro) >= ?';
+    params.push(fecha_desde);
+  }
+  
+  if (fecha_hasta) {
+    query += ' AND DATE(z.fecha_registro) <= ?';
+    params.push(fecha_hasta);
+  }
+  
+  query += ' ORDER BY z.fecha_registro DESC';
+  
+  db.all(query, params, (err, zapatos) => {
+    if (err) {
+      console.error('Error al obtener zapatos agregados:', err.message);
+      return res.status(500).json({ 
+        message: 'Error al obtener zapatos agregados', 
+        error: err.message 
+      });
+    }
+    
+    res.json(zapatos || []);
+  });
+});
+
+// GET - Clientes agregados por período
+router.get('/clientes-agregados', (req, res) => {
+  const { fecha_desde, fecha_hasta } = req.query;
+  
+  let query = `
+    SELECT 
+      id,
+      nombre,
+      apellido,
+      cedula,
+      telefono,
+      fecha_registro
+    FROM cliente
+    WHERE 1=1
+  `;
+  
+  const params = [];
+  
+  if (fecha_desde) {
+    query += ' AND DATE(fecha_registro) >= ?';
+    params.push(fecha_desde);
+  }
+  
+  if (fecha_hasta) {
+    query += ' AND DATE(fecha_registro) <= ?';
+    params.push(fecha_hasta);
+  }
+  
+  query += ' ORDER BY fecha_registro DESC';
+  
+  db.all(query, params, (err, clientes) => {
+    if (err) {
+      console.error('Error al obtener clientes agregados:', err.message);
+      return res.status(500).json({ 
+        message: 'Error al obtener clientes agregados', 
+        error: err.message 
+      });
+    }
+    
+    res.json(clientes || []);
+  });
+});
+
+// GET - Detalles de zapatos vendidos por período
+router.get('/zapatos-vendidos-detalle', (req, res) => {
+  const { fecha_desde, fecha_hasta } = req.query;
+  
+  let query = `
+    SELECT 
+      z.marca,
+      z.modelo,
+      zd.talla,
+      dv.precio_venta,
+      zd.precio_compra,
+      (dv.precio_venta - zd.precio_compra) as ganancia,
+      v.fecha as fecha_venta
+    FROM ventas v
+    INNER JOIN detalle_ventas dv ON v.id = dv.venta_id
+    INNER JOIN zapato z ON dv.zapato_id = z.id
+    INNER JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    WHERE v.tipo = 'venta' AND v.estado = 'activa'
+  `;
+  
+  const params = [];
+  
+  if (fecha_desde) {
+    query += ' AND DATE(v.fecha) >= ?';
+    params.push(fecha_desde);
+  }
+  
+  if (fecha_hasta) {
+    query += ' AND DATE(v.fecha) <= ?';
+    params.push(fecha_hasta);
+  }
+  
+  query += ' ORDER BY v.fecha DESC';
+  
+  db.all(query, params, (err, zapatos) => {
+    if (err) {
+      console.error('Error al obtener detalles de zapatos vendidos:', err.message);
+      return res.status(500).json({ 
+        message: 'Error al obtener detalles de zapatos vendidos', 
+        error: err.message 
+      });
+    }
+    
+    res.json(zapatos || []);
+  });
+});
+
+// GET - Reservas agregadas por período
+router.get('/reservas-agregadas', (req, res) => {
+  const { fecha_desde, fecha_hasta } = req.query;
+  
+  let query = `
+    SELECT 
+      r.id,
+      r.fecha_reserva,
+      r.fecha_limite,
+      r.monto_pagado,
+      r.estado,
+      c.nombre as cliente_nombre,
+      z.marca,
+      z.modelo,
+      zd.estado as zapato_estado
+    FROM reservas r
+    INNER JOIN cliente c ON r.id_cliente = c.id
+    INNER JOIN zapato z ON r.id_zapato = z.id
+    INNER JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    WHERE r.estado = 'activa'
+  `;
+  
+  const params = [];
+  
+  if (fecha_desde) {
+    query += ' AND DATE(r.fecha_reserva) >= ?';
+    params.push(fecha_desde);
+  }
+  
+  if (fecha_hasta) {
+    query += ' AND DATE(r.fecha_reserva) <= ?';
+    params.push(fecha_hasta);
+  }
+  
+  query += ' ORDER BY r.fecha_reserva DESC';
+  
+  db.all(query, params, (err, reservas) => {
+    if (err) {
+      console.error('Error al obtener reservas agregadas:', err.message);
+      return res.status(500).json({ 
+        message: 'Error al obtener reservas agregadas', 
+        error: err.message 
+      });
+    }
+    
+    res.json(reservas || []);
+  });
+});
+
+// POST - Procesar reservas vencidas (liberar zapatos)
+router.post('/procesar-reservas-vencidas', (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Obtener reservas vencidas
+  const queryVencidas = `
+    SELECT r.*, z.id as zapato_id
+    FROM reservas r
+    INNER JOIN zapato z ON r.id_zapato = z.id
+    WHERE r.estado = 'activa' AND DATE(r.fecha_limite) < ?
+  `;
+  
+  db.all(queryVencidas, [today], (err, reservasVencidas) => {
+    if (err) {
+      console.error('Error al obtener reservas vencidas:', err.message);
+      return res.status(500).json({ message: 'Error al procesar reservas vencidas' });
+    }
+    
+    if (reservasVencidas.length === 0) {
+      return res.json({ message: 'No hay reservas vencidas para procesar', procesadas: 0 });
+    }
+    
+    // Actualizar estado de reservas vencidas
+    const updateReservas = `UPDATE reservas SET estado = 'vencida' WHERE id = ?`;
+    const updateZapatos = `UPDATE zapato_detalle SET estado = 'activo' WHERE id_zapato = ?`;
+    
+    let procesadas = 0;
+    let errores = 0;
+    
+    reservasVencidas.forEach((reserva, index) => {
+      // Actualizar reserva
+      db.run(updateReservas, [reserva.id], (err) => {
+        if (err) {
+          console.error(`Error actualizando reserva ${reserva.id}:`, err.message);
+          errores++;
+        } else {
+          // Actualizar zapato
+          db.run(updateZapatos, [reserva.zapato_id], (err) => {
+            if (err) {
+              console.error(`Error actualizando zapato ${reserva.zapato_id}:`, err.message);
+              errores++;
+            } else {
+              procesadas++;
+            }
+            
+            // Si es el último elemento, enviar respuesta
+            if (index === reservasVencidas.length - 1) {
+              res.json({
+                message: `Procesamiento completado. ${procesadas} reservas procesadas, ${errores} errores.`,
+                procesadas,
+                errores,
+                reservas_vencidas: reservasVencidas
+              });
+            }
+          });
+        }
+      });
+    });
+  });
+});
+
 // GET - Verificar conteo de zapatos por estado
 router.get('/zapatos-por-estado', (req, res) => {
   const query = `
@@ -663,6 +941,248 @@ router.get('/zapatos-por-estado', (req, res) => {
       conteo_por_estado: resultados,
       timestamp: new Date().toISOString()
     });
+  });
+});
+
+// Ruta para reporte diario
+router.get('/diario/:fecha', (req, res) => {
+  const { fecha } = req.params;
+  const query = `
+    SELECT 
+      SUM(ventas_totales) as totalVentas,
+      COUNT(*) as totalReportes
+    FROM reportes
+    WHERE DATE(fecha) = ?`;
+
+  db.get(query, [fecha], (err, result) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener reporte diario', error: err.message });
+    }
+    res.json({ fecha, ...result });
+  });
+});
+
+// Ruta para reporte semanal
+router.get('/semanal/:fecha_inicio/:fecha_fin', (req, res) => {
+  const { fecha_inicio, fecha_fin } = req.params;
+  const query = `
+    SELECT 
+      DATE(fecha) as dia,
+      SUM(ventas) as totalVentas,
+      COUNT(*) as totalReportes
+    FROM reportes
+    WHERE DATE(fecha) BETWEEN ? AND ?
+    GROUP BY dia
+    ORDER BY dia ASC`;
+
+  db.all(query, [fecha_inicio, fecha_fin], (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener reporte semanal', error: err.message });
+    }
+    res.json({ fecha_inicio, fecha_fin, resultados: results });
+  });
+});
+
+// Ruta para reporte mensual
+router.get('/mensual/:mes/:año', (req, res) => {
+  const { mes, año } = req.params;
+  const query = `
+    SELECT 
+      DATE(fecha) as dia,
+      SUM(ventas) as totalVentas,
+      COUNT(*) as totalReportes
+    FROM reportes
+    WHERE strftime('%m', fecha) = ? AND strftime('%Y', fecha) = ?
+    GROUP BY dia
+    ORDER BY dia ASC`;
+
+  db.all(query, [mes, año], (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener reporte mensual', error: err.message });
+    }
+    res.json({ mes, año, resultados: results });
+  });
+});
+
+// Ruta para dashboard general
+router.get('/dashboard', (req, res) => {
+  const queries = {
+    totalVentas: 'SELECT SUM(ventas) as totalVentas FROM reportes',
+    totalReportes: 'SELECT COUNT(*) as totalReportes FROM reportes',
+  };
+
+  const results = {};
+  let completedQueries = 0;
+
+  Object.keys(queries).forEach((key) => {
+    db.get(queries[key], [], (err, result) => {
+      if (err) {
+        return res.status(500).json({ message: `Error al obtener ${key}`, error: err.message });
+      }
+
+      results[key] = result;
+      completedQueries++;
+
+      if (completedQueries === Object.keys(queries).length) {
+        res.json(results);
+      }
+    });
+  });
+});
+
+// Ruta para generar PDF de reporte diario
+router.get('/diario/:fecha/pdf', (req, res) => {
+  const { fecha } = req.params;
+  const query = `
+    SELECT 
+      SUM(ventas_totales) as totalVentas,
+      COUNT(*) as totalReportes
+    FROM reportes
+    WHERE DATE(fecha) = ?`;
+
+  db.get(query, [fecha], (err, result) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al generar PDF', error: err.message });
+    }
+
+    // Crear documento PDF
+    const doc = new PDFDocument();
+
+    // Configurar encabezados HTTP para el PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=reporte_diario_${fecha}.pdf`);
+
+    // Generar contenido del PDF
+    doc.fontSize(20).text('Reporte Diario', { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(14).text(`Fecha: ${fecha}`);
+    doc.moveDown();
+
+    if (result.totalVentas) {
+      doc.text(`Total de Ventas: $${result.totalVentas}`);
+      doc.text(`Total de Reportes: ${result.totalReportes}`);
+    } else {
+      doc.text('No se encontraron ventas para esta fecha.');
+    }
+
+    // Finalizar el PDF y enviarlo
+    doc.end();
+    doc.pipe(res);
+  });
+});
+
+// Ruta para datos de gráfica de ventas diarias
+router.get('/graficas/ventas-diarias/:mes/:año', (req, res) => {
+  const { mes, año } = req.params;
+  const query = `
+    SELECT 
+      DATE(fecha) as dia,
+      SUM(ventas_totales) as totalVentas
+    FROM reportes
+    WHERE strftime('%m', fecha) = ? AND strftime('%Y', fecha) = ?
+    GROUP BY dia
+    ORDER BY dia ASC`;
+
+  db.all(query, [mes, año], (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener datos de ventas diarias', error: err.message });
+    }
+    res.json({ mes, año, resultados: results });
+  });
+});
+
+// Ruta para datos de gráfica de ventas por categoría
+router.get('/graficas/ventas-categorias/:mes/:año', (req, res) => {
+  const { mes, año } = req.params;
+  const query = `
+    SELECT 
+      categoria,
+      SUM(ventas_totales) as totalVentas
+    FROM reportes
+    WHERE strftime('%m', fecha) = ? AND strftime('%Y', fecha) = ?
+    GROUP BY categoria
+    ORDER BY totalVentas DESC`;
+
+  db.all(query, [mes, año], (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener datos de ventas por categoría', error: err.message });
+    }
+    res.json({ mes, año, resultados: results });
+  });
+});
+
+// Ruta para guardar reportes mensuales
+router.post('/guardar', (req, res) => {
+  const { fecha, ventas_totales, datos } = req.body;
+
+  if (!fecha || !ventas_totales || !datos) {
+    return res.status(400).json({ message: 'Faltan datos requeridos para guardar el reporte.' });
+  }
+
+  const query = `INSERT INTO reportes (fecha, ventas_totales, datos, tipo) VALUES (?, ?, ?, 'mensual')`;
+  const params = [fecha, ventas_totales, JSON.stringify(datos)];
+
+  db.run(query, params, function (err) {
+    if (err) {
+      console.error('Error al guardar el reporte:', err.message);
+      return res.status(500).json({ message: 'Error al guardar el reporte.', error: err.message });
+    }
+
+    res.status(201).json({ message: 'Reporte guardado exitosamente.', id: this.lastID });
+  });
+});
+
+// GET - Años disponibles de reportes guardados
+router.get('/years-disponibles', (req, res) => {
+  const query = `
+    SELECT DISTINCT strftime('%Y', fecha) as año 
+    FROM reportes 
+    WHERE tipo = 'mensual' 
+    ORDER BY año DESC
+  `;
+
+  db.all(query, [], (err, results) => {
+    if (err) {
+      console.error('Error al obtener años disponibles:', err.message);
+      return res.status(500).json({ message: 'Error al obtener años disponibles', error: err.message });
+    }
+
+    const years = results.map(row => parseInt(row.año));
+    res.json(years);
+  });
+});
+
+// GET - Reportes guardados por año y mes
+router.get('/guardados', (req, res) => {
+  const { año, mes } = req.query;
+
+  if (!año || !mes) {
+    return res.status(400).json({ message: 'Se requieren año y mes' });
+  }
+
+  const query = `
+    SELECT 
+      id,
+      fecha,
+      ventas_totales,
+      datos,
+      tipo
+    FROM reportes 
+    WHERE strftime('%Y', fecha) = ? 
+    AND strftime('%m', fecha) = ?
+    AND tipo = 'mensual'
+    ORDER BY fecha DESC
+  `;
+
+  const params = [año.toString(), mes.toString().padStart(2, '0')];
+
+  db.all(query, params, (err, reportes) => {
+    if (err) {
+      console.error('Error al obtener reportes guardados:', err.message);
+      return res.status(500).json({ message: 'Error al obtener reportes guardados', error: err.message });
+    }
+
+    res.json(reportes || []);
   });
 });
 

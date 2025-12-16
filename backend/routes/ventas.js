@@ -156,14 +156,15 @@ router.post('/', (req, res) => {
               });
             }
 
-            // 2. Actualizar precio vendido en zapato_detalle
+            // 2. Actualizar precio vendido y estado en zapato_detalle
+            const estadoZapatoDetalle = tipo === 'venta' ? 'vendido' : 'reservado';
             const updateZapatoQuery = `
               UPDATE zapato_detalle 
-              SET precio_vendido = ? 
+              SET precio_vendido = ?, estado = ?
               WHERE id_zapato = ?
             `;
 
-            db.run(updateZapatoQuery, [precio_vendido, zapato_id], (err) => {
+            db.run(updateZapatoQuery, [precio_vendido, estadoZapatoDetalle, zapato_id], (err) => {
               if (err) {
                 console.error(`❌ Error al actualizar precio zapato ${index + 1}:`, err);
                 db.run("ROLLBACK");
@@ -192,9 +193,37 @@ router.post('/', (req, res) => {
                   });
                 }
 
-                console.log(`✅ Zapato ${index + 1} procesado exitosamente`);
-                // Procesar siguiente zapato
-                procesarZapato(index + 1);
+                // 4. Si es reservación, insertar en tabla reservas
+                if (tipo === 'reservacion') {
+                  const fechaLimite = new Date();
+                  fechaLimite.setDate(fechaLimite.getDate() + 7); // 7 días después
+                  const fechaLimiteStr = fechaLimite.toISOString().split('T')[0];
+                  
+                  const insertReservaQuery = `
+                    INSERT INTO reservas (id_cliente, id_zapato, monto_pagado, fecha_reserva, fecha_limite, estado)
+                    VALUES (?, ?, ?, ?, ?, 'activa')
+                  `;
+
+                  db.run(insertReservaQuery, [cliente_id, zapato_id, precio_vendido, fechaActual, fechaLimiteStr], (err) => {
+                    if (err) {
+                      console.error(`❌ Error al insertar reserva para zapato ${index + 1}:`, err);
+                      db.run("ROLLBACK");
+                      db.close();
+                      return res.status(500).json({ 
+                        success: false, 
+                        message: `Error al registrar la reserva del zapato ${index + 1}` 
+                      });
+                    }
+
+                    console.log(`✅ Zapato ${index + 1} procesado exitosamente con reserva`);
+                    // Procesar siguiente zapato
+                    procesarZapato(index + 1);
+                  });
+                } else {
+                  console.log(`✅ Zapato ${index + 1} procesado exitosamente`);
+                  // Procesar siguiente zapato
+                  procesarZapato(index + 1);
+                }
               });
             });
           });

@@ -88,7 +88,7 @@
             </q-item-section>
           </q-item>
 
-          <q-item clickable v-ripple @click="navigateTo('reportes')">
+          <q-item clickable v-ripple @click="navigateTo('/reportes')">
             <q-item-section avatar>
               <q-icon color="blue" name="assessment" />
             </q-item-section>
