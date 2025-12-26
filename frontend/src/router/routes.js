@@ -57,6 +57,11 @@ const routes = [
     component: () => import('pages/ReportesPage.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/reservaciones',
+    component: () => import('pages/ReservationPage.vue'),
+    meta: { requiresAuth: true }
+  },
 
   // Página de ventas - dentro del MainLayout
   {

@@ -68,7 +68,7 @@
             </q-item-section>
           </q-item>
 
-          <q-item clickable v-ripple @click="navigateTo('reservas')">
+          <q-item clickable v-ripple @click="navigateTo('/reservaciones')">
             <q-item-section avatar>
               <q-icon color="orange" name="bookmark" />
             </q-item-section>
