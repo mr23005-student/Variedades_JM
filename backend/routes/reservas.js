@@ -246,8 +246,18 @@ router.put('/:id/pago', (req, res) => {
 
   console.log('Actualizando pago para reserva:', id, { monto_adicional, fecha_limite });
 
-  // Primero obtenemos el monto actual
-  db.get('SELECT monto_pagado FROM reservas WHERE id = ?', [id], (err, reserva) => {
+  // Primero obtenemos los datos completos de la reserva
+  const getReservaQuery = `
+    SELECT 
+      r.id, r.monto_pagado, r.id_zapato, r.id_cliente,
+      zd.precio_venta
+    FROM reservas r
+    INNER JOIN zapato z ON r.id_zapato = z.id
+    INNER JOIN zapato_detalle zd ON z.id = zd.id_zapato
+    WHERE r.id = ?
+  `;
+
+  db.get(getReservaQuery, [id], (err, reserva) => {
     if (err) {
       return res.status(500).json({ message: 'Error al obtener reserva', error: err.message });
     }
@@ -257,26 +267,122 @@ router.put('/:id/pago', (req, res) => {
     }
 
     const nuevoMonto = reserva.monto_pagado + (monto_adicional || 0);
+    const restante = reserva.precio_venta - nuevoMonto;
+    const pagoCompleto = restante <= 0;
     
-    let query = 'UPDATE reservas SET monto_pagado = ?';
-    let params = [nuevoMonto];
+    console.log('Análisis de pago:', {
+      monto_actual: reserva.monto_pagado,
+      monto_adicional: monto_adicional,
+      nuevo_monto: nuevoMonto,
+      precio_venta: reserva.precio_venta,
+      restante: restante,
+      pago_completo: pagoCompleto
+    });
 
-    if (fecha_limite) {
-      query += ', fecha_limite = ?';
-      params.push(fecha_limite);
-    }
-
-    query += ' WHERE id = ?';
-    params.push(id);
-
-    db.run(query, params, function(err) {
+    // Iniciar transacción
+    db.run('BEGIN TRANSACTION', (err) => {
       if (err) {
-        return res.status(500).json({ message: 'Error al actualizar pago', error: err.message });
+        return res.status(500).json({ message: 'Error al iniciar transacción', error: err.message });
       }
 
-      res.json({ 
-        message: 'Pago actualizado exitosamente',
-        nuevo_monto: nuevoMonto
+      // 1. Actualizar el monto pagado y fecha límite en reserva
+      let updateReservaQuery = 'UPDATE reservas SET monto_pagado = ?';
+      let params = [nuevoMonto];
+
+      if (fecha_limite) {
+        updateReservaQuery += ', fecha_limite = ?';
+        params.push(fecha_limite);
+      }
+
+      // Si el pago está completo, cambiar estado a completada
+      if (pagoCompleto) {
+        updateReservaQuery += ', estado = ?';
+        params.push('completada');
+      }
+
+      updateReservaQuery += ' WHERE id = ?';
+      params.push(id);
+
+      db.run(updateReservaQuery, params, function(err) {
+        if (err) {
+          db.run('ROLLBACK');
+          return res.status(500).json({ message: 'Error al actualizar reserva', error: err.message });
+        }
+
+        // Si el pago está completo, procesar como venta
+        if (pagoCompleto) {
+          // 2. Cambiar estado del zapato a vendido
+          const updateZapatoQuery = `
+            UPDATE zapato_detalle 
+            SET precio_vendido = ?, estado = 'vendido'
+            WHERE id_zapato = ?
+          `;
+
+          db.run(updateZapatoQuery, [reserva.precio_venta, reserva.id_zapato], (err) => {
+            if (err) {
+              db.run('ROLLBACK');
+              return res.status(500).json({ message: 'Error al actualizar zapato', error: err.message });
+            }
+
+            // 3. Crear registro de venta
+            const fechaActual = new Date().toISOString().split('T')[0];
+            const insertVentaQuery = `
+              INSERT INTO ventas (cliente_id, fecha, total, estado, tipo)
+              VALUES (?, ?, ?, 'completada', 'venta')
+            `;
+
+            db.run(insertVentaQuery, [reserva.id_cliente, fechaActual, reserva.precio_venta], function(err) {
+              if (err) {
+                db.run('ROLLBACK');
+                return res.status(500).json({ message: 'Error al crear venta', error: err.message });
+              }
+
+              const ventaId = this.lastID;
+
+              // 4. Crear detalle de venta
+              const insertDetalleQuery = `
+                INSERT INTO detalle_ventas (venta_id, zapato_id, precio_venta, tipo)
+                VALUES (?, ?, ?, 'venta')
+              `;
+
+              db.run(insertDetalleQuery, [ventaId, reserva.id_zapato, reserva.precio_venta], (err) => {
+                if (err) {
+                  db.run('ROLLBACK');
+                  return res.status(500).json({ message: 'Error al crear detalle de venta', error: err.message });
+                }
+
+                // Confirmar transacción
+                db.run('COMMIT', (err) => {
+                  if (err) {
+                    db.run('ROLLBACK');
+                    return res.status(500).json({ message: 'Error al confirmar transacción', error: err.message });
+                  }
+
+                  res.json({ 
+                    message: 'Reserva completada y venta registrada exitosamente',
+                    nuevo_monto: nuevoMonto,
+                    pago_completo: true,
+                    venta_id: ventaId
+                  });
+                });
+              });
+            });
+          });
+        } else {
+          // Solo actualización de pago parcial
+          db.run('COMMIT', (err) => {
+            if (err) {
+              db.run('ROLLBACK');
+              return res.status(500).json({ message: 'Error al confirmar transacción', error: err.message });
+            }
+
+            res.json({ 
+              message: 'Pago actualizado exitosamente',
+              nuevo_monto: nuevoMonto,
+              pago_completo: false
+            });
+          });
+        }
       });
     });
   });

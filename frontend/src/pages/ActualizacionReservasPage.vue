@@ -92,9 +92,16 @@
                   <span>Pagado:</span>
                   <span class="text-weight-bold">${{ formatPrice(reserva.monto_pagado) }}</span>
                 </div>
-                <div class="row justify-between text-primary">
+                <div class="row justify-between q-mb-sm" :class="restanteCalculado <= 0 ? 'text-positive' : 'text-primary'">
                   <span>Restante:</span>
                   <span class="text-weight-bold" id="restante">${{ formatPrice(restanteCalculado) }}</span>
+                </div>
+
+                <!-- Indicador de pago completo -->
+                <div v-if="restanteCalculado <= 0" class="row justify-center q-mt-md">
+                  <q-chip color="positive" text-color="white" icon="check_circle">
+                    ¡RESERVA SERÁ COMPLETADA COMO VENTA!
+                  </q-chip>
                 </div>
               </div>
             </q-card-section>
@@ -133,8 +140,9 @@
               <div class="row q-gutter-sm full-width">
                 <q-btn
                   class="col"
-                  color="positive"
-                  label="Actualizar"
+                  :color="restanteCalculado <= 0 ? 'positive' : 'primary'"
+                  :label="restanteCalculado <= 0 ? 'Completar Venta' : 'Actualizar'"
+                  :icon="restanteCalculado <= 0 ? 'check_circle' : 'edit'"
                   @click="actualizarReserva"
                   :loading="actualizando"
                 />
@@ -339,17 +347,34 @@ export default {
 
         console.log('Actualizando reserva:', datos)
 
-        await axios.put(`http://localhost:3000/api/reservas/${reserva.value.id}/pago`, datos)
+        const response = await axios.put(`http://localhost:3000/api/reservas/${reserva.value.id}/pago`, datos)
 
-        $q.notify({
-          type: 'positive',
-          message: 'Reserva actualizada exitosamente',
-          timeout: 3000
-        })
+        // Verificar si el pago se completó
+        if (response.data.pago_completo) {
+          $q.notify({
+            type: 'positive',
+            message: '¡Reserva completada! Se ha registrado la venta exitosamente',
+            timeout: 5000,
+            actions: [
+              { label: 'Ver Ventas', color: 'white', handler: () => router.push('/historial-ventas') }
+            ]
+          })
 
-        // Recargar datos
-        await cargarReserva()
-        montoAdicional.value = 0
+          // Regresar a reservaciones después de un momento
+          setTimeout(() => {
+            router.push('/reservaciones')
+          }, 2000)
+        } else {
+          $q.notify({
+            type: 'positive',
+            message: 'Pago actualizado exitosamente',
+            timeout: 3000
+          })
+
+          // Recargar datos
+          await cargarReserva()
+          montoAdicional.value = 0
+        }
 
       } catch (error) {
         console.error('Error al actualizar reserva:', error)
