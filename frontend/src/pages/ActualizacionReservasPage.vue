@@ -100,7 +100,7 @@
                 <!-- Indicador de pago completo -->
                 <div v-if="restanteCalculado <= 0" class="row justify-center q-mt-md">
                   <q-chip color="positive" text-color="white" icon="check_circle">
-                    ¡RESERVA SERÁ COMPLETADA COMO VENTA!
+                    ¡LA RESERVA SE COMPLETARÁ COMO VENTA Y SERÁ ELIMINADA!
                   </q-chip>
                 </div>
               </div>
@@ -353,17 +353,17 @@ export default {
         if (response.data.pago_completo) {
           $q.notify({
             type: 'positive',
-            message: '¡Reserva completada! Se ha registrado la venta exitosamente',
+            message: '¡Reserva completada como venta! La reserva ha sido eliminada del sistema',
             timeout: 5000,
             actions: [
               { label: 'Ver Ventas', color: 'white', handler: () => router.push('/historial-ventas') }
             ]
           })
 
-          // Regresar a reservaciones después de un momento
+          // Regresar inmediatamente a reservaciones ya que la reserva fue eliminada
           setTimeout(() => {
             router.push('/reservaciones')
-          }, 2000)
+          }, 1500)
         } else {
           $q.notify({
             type: 'positive',

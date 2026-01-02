@@ -270,14 +270,15 @@ router.put('/:id/pago', (req, res) => {
     const restante = reserva.precio_venta - nuevoMonto;
     const pagoCompleto = restante <= 0;
     
-    console.log('Análisis de pago:', {
-      monto_actual: reserva.monto_pagado,
-      monto_adicional: monto_adicional,
-      nuevo_monto: nuevoMonto,
-      precio_venta: reserva.precio_venta,
-      restante: restante,
-      pago_completo: pagoCompleto
-    });
+    console.log('=== ANÁLISIS DE PAGO COMPLETO ===');
+    console.log('Reserva ID:', id);
+    console.log('Monto actual:', reserva.monto_pagado);
+    console.log('Monto adicional:', monto_adicional);
+    console.log('Nuevo monto:', nuevoMonto);
+    console.log('Precio venta:', reserva.precio_venta);
+    console.log('Restante calculado:', restante);
+    console.log('¿Pago completo?:', pagoCompleto);
+    console.log('=====================================');
 
     // Iniciar transacción
     db.run('BEGIN TRANSACTION', (err) => {
@@ -311,6 +312,8 @@ router.put('/:id/pago', (req, res) => {
 
         // Si el pago está completo, procesar como venta
         if (pagoCompleto) {
+          console.log('🎯 INICIANDO PROCESO DE VENTA COMPLETA...');
+          
           // 2. Cambiar estado del zapato a vendido
           const updateZapatoQuery = `
             UPDATE zapato_detalle 
@@ -318,11 +321,16 @@ router.put('/:id/pago', (req, res) => {
             WHERE id_zapato = ?
           `;
 
+          console.log('📝 Ejecutando actualización de zapato...', {zapato_id: reserva.id_zapato, precio: reserva.precio_venta});
+
           db.run(updateZapatoQuery, [reserva.precio_venta, reserva.id_zapato], (err) => {
             if (err) {
+              console.error('❌ Error al actualizar zapato:', err);
               db.run('ROLLBACK');
               return res.status(500).json({ message: 'Error al actualizar zapato', error: err.message });
             }
+
+            console.log('✅ Zapato actualizado correctamente');
 
             // 3. Crear registro de venta
             const fechaActual = new Date().toISOString().split('T')[0];
@@ -331,13 +339,17 @@ router.put('/:id/pago', (req, res) => {
               VALUES (?, ?, ?, 'completada', 'venta')
             `;
 
+            console.log('📝 Creando registro de venta...', {cliente_id: reserva.id_cliente, fecha: fechaActual, total: reserva.precio_venta});
+
             db.run(insertVentaQuery, [reserva.id_cliente, fechaActual, reserva.precio_venta], function(err) {
               if (err) {
+                console.error('❌ Error al crear venta:', err);
                 db.run('ROLLBACK');
                 return res.status(500).json({ message: 'Error al crear venta', error: err.message });
               }
 
               const ventaId = this.lastID;
+              console.log('✅ Venta creada con ID:', ventaId);
 
               // 4. Crear detalle de venta
               const insertDetalleQuery = `
@@ -345,24 +357,48 @@ router.put('/:id/pago', (req, res) => {
                 VALUES (?, ?, ?, 'venta')
               `;
 
+              console.log('📝 Creando detalle de venta...', {venta_id: ventaId, zapato_id: reserva.id_zapato, precio: reserva.precio_venta});
+
               db.run(insertDetalleQuery, [ventaId, reserva.id_zapato, reserva.precio_venta], (err) => {
                 if (err) {
+                  console.error('❌ Error al crear detalle de venta:', err);
                   db.run('ROLLBACK');
                   return res.status(500).json({ message: 'Error al crear detalle de venta', error: err.message });
                 }
 
-                // Confirmar transacción
-                db.run('COMMIT', (err) => {
+                console.log('✅ Detalle de venta creado');
+
+                // 5. Eliminar la reserva ya que se completó como venta
+                const deleteReservaQuery = 'DELETE FROM reservas WHERE id = ?';
+                
+                console.log('📝 Eliminando reserva con ID:', id);
+
+                db.run(deleteReservaQuery, [id], (err) => {
                   if (err) {
+                    console.error('❌ Error al eliminar reserva:', err);
                     db.run('ROLLBACK');
-                    return res.status(500).json({ message: 'Error al confirmar transacción', error: err.message });
+                    return res.status(500).json({ message: 'Error al eliminar reserva completada', error: err.message });
                   }
 
-                  res.json({ 
-                    message: 'Reserva completada y venta registrada exitosamente',
-                    nuevo_monto: nuevoMonto,
-                    pago_completo: true,
-                    venta_id: ventaId
+                  console.log('✅ Reserva eliminada correctamente');
+
+                  // Confirmar transacción
+                  db.run('COMMIT', (err) => {
+                    if (err) {
+                      console.error('❌ Error al confirmar transacción:', err);
+                      db.run('ROLLBACK');
+                      return res.status(500).json({ message: 'Error al confirmar transacción', error: err.message });
+                    }
+
+                    console.log('🎉 PROCESO COMPLETO: Reserva convertida a venta exitosamente');
+
+                    res.json({ 
+                      message: 'Reserva completada como venta y eliminada exitosamente',
+                      nuevo_monto: nuevoMonto,
+                      pago_completo: true,
+                      venta_id: ventaId,
+                      reserva_eliminada: true
+                    });
                   });
                 });
               });
@@ -370,11 +406,16 @@ router.put('/:id/pago', (req, res) => {
           });
         } else {
           // Solo actualización de pago parcial
+          console.log('💰 PAGO PARCIAL: Solo actualizando monto');
+          
           db.run('COMMIT', (err) => {
             if (err) {
+              console.error('❌ Error al confirmar pago parcial:', err);
               db.run('ROLLBACK');
               return res.status(500).json({ message: 'Error al confirmar transacción', error: err.message });
             }
+
+            console.log('✅ Pago parcial actualizado correctamente');
 
             res.json({ 
               message: 'Pago actualizado exitosamente',
