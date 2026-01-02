@@ -66,13 +66,10 @@ router.get('/', (req, res) => {
                             stats.totalClientes = row.totalClientes || 0;
                             console.log(`👥 Total clientes: ${stats.totalClientes}`);
 
-                            // Obtener total de reservas activas (todas las reservas, no solo del día)
+                            // Obtener reservas activas de la tabla reservas (no de ventas)
                             db.get(
-                                `SELECT COUNT(DISTINCT dv.id) as reservasPendientes 
-                                 FROM detalle_ventas dv
-                                 JOIN ventas v ON dv.venta_id = v.id
-                                 WHERE dv.tipo = 'reservacion' 
-                                 AND v.estado = 'activa'`, 
+                                'SELECT COUNT(*) as reservasPendientes FROM reservas WHERE estado = ?', 
+                                ['activa'],
                                 (err, row) => {
                                     if (err) {
                                         console.error('❌ Error obteniendo reservas pendientes:', err.message);
@@ -80,7 +77,7 @@ router.get('/', (req, res) => {
                                     }
 
                                     stats.reservasPendientes = row.reservasPendientes || 0;
-                                    console.log(`📋 Reservas totales activas: ${stats.reservasPendientes}`);
+                                    console.log(`📋 Reservas activas: ${stats.reservasPendientes}`);
 
                                 console.log('✅ Estadísticas obtenidas exitosamente');
                                 console.log('=== FIN ESTADÍSTICAS ===');

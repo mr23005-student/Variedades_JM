@@ -1,21 +1,41 @@
 <template>
-  <q-page class="historial-ventas-page">
-    <div class="page-background">
-      <div class="row justify-center q-pa-md">
-        <div class="col-12 col-md-10 col-lg-8">
-
-          <!-- Botón de regreso -->
-          <div class="q-mb-md">
-            <q-btn
-              @click="$router.push('/main')"
-              icon="arrow_back"
-              label="Regresar al Inicio"
-              color="white"
-              text-color="primary"
-              class="q-mb-md"
-              size="md"
-            />
+  <q-layout view="hHh lpR fFf">
+    <!-- Header -->
+    <q-header elevated class="bg-gradient text-white">
+      <q-toolbar>
+        <q-btn
+          dense
+          flat
+          round
+          icon="arrow_back"
+          @click="$router.push('/main')"
+          class="q-mr-md"
+        />
+        <q-toolbar-title class="text-center">
+          <div class="flex items-center justify-center">
+            <q-icon name="history" class="q-mr-sm" size="sm" />
+            Historial de Ventas
           </div>
+        </q-toolbar-title>
+        <q-space />
+        <q-btn
+          flat
+          round
+          dense
+          icon="home"
+          @click="$router.push('/main')"
+          class="text-white"
+        >
+          <q-tooltip>Ir al Menú Principal</q-tooltip>
+        </q-btn>
+      </q-toolbar>
+    </q-header>
+
+    <q-page-container>
+      <q-page class="historial-ventas-page">
+        <div class="page-background">
+          <div class="row justify-center q-pa-md">
+            <div class="col-12 col-md-10 col-lg-8">
 
           <!-- Título -->
           <q-card class="beautiful-card q-mb-md">
@@ -171,10 +191,12 @@
             </q-card-section>
           </q-card>
 
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  </q-page>
+      </q-page>
+    </q-page-container>
+  </q-layout>
 </template>
 
 <script setup>
@@ -312,8 +334,8 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.historial-ventas-page {
-  min-height: 100vh;
+.bg-gradient {
+  background: linear-gradient(135deg, #2c3e50 0%, #4a6491 100%);
 }
 
 .page-background {

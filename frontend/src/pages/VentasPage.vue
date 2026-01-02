@@ -1,26 +1,47 @@
 <template>
-  <q-page class="ventas-page">
-    <div class="page-background">
-      <div class="row justify-center q-pa-md">
-        <div class="col-12 col-md-10 col-lg-8">
-
-          <!-- Botón de regreso -->
-          <div class="q-mb-md">
-            <q-btn
-              @click="$router.push('/')"
-              icon="arrow_back"
-              label="Regresar al Inicio"
-              color="white"
-              text-color="primary"
-              class="q-mb-md"
-              size="md"
-            />
+  <q-layout view="hHh lpR fFf">
+    <!-- Header -->
+    <q-header elevated class="bg-gradient text-white">
+      <q-toolbar>
+        <q-btn
+          dense
+          flat
+          round
+          icon="arrow_back"
+          @click="$router.push('/main')"
+          class="q-mr-md"
+        />
+        <q-toolbar-title class="text-center">
+          <div class="flex items-center justify-center">
+            <q-icon name="point_of_sale" class="q-mr-sm" size="sm" />
+            Ventas y Reservaciones
           </div>
+        </q-toolbar-title>
+        <q-space />
+        <q-btn
+          flat
+          round
+          dense
+          icon="home"
+          @click="$router.push('/main')"
+          class="text-white"
+        >
+          <q-tooltip>Ir al Menú Principal</q-tooltip>
+        </q-btn>
+      </q-toolbar>
+    </q-header>
+
+    <q-page-container>
+      <q-page class="ventas-page">
+        <div class="page-background">
+          <div class="row justify-center q-pa-md">
+            <div class="col-12 col-md-10 col-lg-8">
 
           <!-- Título -->
           <q-card class="beautiful-card q-mb-md">
             <q-card-section class="text-center q-pb-none">
-              <div class="text-h4 text-weight-bold text-primary q-mb-md">
+              <div class="text-h4 text-weight-bold text-primary q-mb-md flex items-center justify-center">
+                <q-icon name="point_of_sale" class="q-mr-sm" size="md" />
                 Ventas y Reservaciones
               </div>
               <div class="text-h6 text-grey-7">Sistema de Gestión de Ventas</div>
@@ -115,6 +136,15 @@
                 <q-icon name="shopping_cart" size="md" class="q-mr-sm" />
                 Calzado Seleccionado ({{ zapatosSeleccionados.length }})
               </div>
+
+              <!-- Instrucción de ayuda -->
+              <q-banner class="bg-blue-1 q-mb-md" rounded>
+                <template v-slot:avatar>
+                  <q-icon name="info" color="primary" />
+                </template>
+                <strong>Importante:</strong> Ingrese el precio de venta final o monto del abono en la columna "Precio Vendido/Abono"
+              </q-banner>
+
               <q-table
                 :rows="zapatosSeleccionados"
                 :columns="columns"
@@ -129,11 +159,15 @@
                       v-model.number="props.row.precio_vendido"
                       type="number"
                       step="0.01"
+                      min="0"
                       dense
-                      borderless
+                      outlined
                       @input="calcularTotal"
                       prefix="$"
-                      style="min-width: 80px"
+                      placeholder="0.00"
+                      label="Precio Vendido/Abono"
+                      style="min-width: 120px"
+                      class="q-pa-xs"
                     />
                   </q-td>
                 </template>
@@ -204,10 +238,12 @@
             />
           </div>
 
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  </q-page>
+      </q-page>
+    </q-page-container>
+  </q-layout>
 </template>
 
 <script>
@@ -252,7 +288,7 @@ export default {
         },
         {
           name: 'precio',
-          label: 'Precio',
+          label: 'Precio Vendido/Abono',
           align: 'center',
           field: 'precio_vendido'
         },
@@ -404,7 +440,7 @@ export default {
           } else {
             this.zapatosSeleccionados.push({
               ...data.zapato,
-              precio_vendido: data.zapato.precio_venta || 0,
+              precio_vendido: '', // Inicializar vacío para que el usuario ingrese el valor
               tipo_operacion: 'venta' // Tipo por defecto
             });
             this.$q.notify({
@@ -596,6 +632,11 @@ export default {
 </script>
 
 <style scoped>
+/* Header gradient */
+.bg-gradient {
+  background: linear-gradient(135deg, #2c3e50 0%, #4a6491 100%);
+}
+
 .ventas-page {
   min-height: 100vh;
 }

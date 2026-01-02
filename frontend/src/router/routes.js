@@ -57,31 +57,29 @@ const routes = [
     component: () => import('pages/ReportesPage.vue'),
     meta: { requiresAuth: true }
   },
-
-  // Página de ventas - dentro del MainLayout
+  // Página de ventas
   {
     path: '/ventas',
-    component: () => import('layouts/MainLayout.vue'),
-    children: [
-      {
-        path: '',
-        component: () => import('pages/VentasPage.vue'),
-        meta: { requiresAuth: true }
-      },
-    ],
+    component: () => import('pages/VentasPage.vue'),
+    meta: { requiresAuth: true }
   },
-
-  // Página de historial de ventas - dentro del MainLayout
+  // Página de reservaciones
   {
+    path: '/reservaciones',
+    component: () => import('pages/ReservationPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  // Página para actualizar reservas
+  {
+    path: '/actualizar-reserva/:id',
+    component: () => import('pages/ActualizacionReservasPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  // Página de historial de ventas
+   {
     path: '/historial-ventas',
-    component: () => import('layouts/MainLayout.vue'),
-    children: [
-      {
-        path: '',
-        component: () => import('pages/HistorialVentasPage.vue'),
-        meta: { requiresAuth: true }
-      },
-    ],
+    component: () => import('pages/HistorialVentasPage.vue'),
+    meta: { requiresAuth: true }
   },
 
   // Ruta del dashboard (para uso futuro)
