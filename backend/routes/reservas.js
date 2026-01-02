@@ -90,14 +90,18 @@ router.get('/:id', (req, res) => {
   const query = `
     SELECT 
       r.id,
+      r.id_cliente,
+      r.id_zapato,
       c.nombre AS cliente,
       c.telefono AS telefono,
       z.marca,
       zd.talla,
       zd.precio_venta,
+      r.monto_pagado,
       r.fecha_reserva,
       r.fecha_limite,
-      r.estado
+      r.estado,
+      (zd.precio_venta - r.monto_pagado) AS restante
     FROM reservas r
     INNER JOIN cliente c ON r.id_cliente = c.id
     INNER JOIN zapato z ON r.id_zapato = z.id
@@ -232,6 +236,49 @@ router.put('/:id/estado', (req, res) => {
     }
 
     res.json({ message: 'Estado de reserva actualizado exitosamente' });
+  });
+});
+
+// PUT - Actualizar pago y fecha límite de reserva
+router.put('/:id/pago', (req, res) => {
+  const { id } = req.params;
+  const { monto_adicional, fecha_limite } = req.body;
+
+  console.log('Actualizando pago para reserva:', id, { monto_adicional, fecha_limite });
+
+  // Primero obtenemos el monto actual
+  db.get('SELECT monto_pagado FROM reservas WHERE id = ?', [id], (err, reserva) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error al obtener reserva', error: err.message });
+    }
+
+    if (!reserva) {
+      return res.status(404).json({ message: 'Reserva no encontrada' });
+    }
+
+    const nuevoMonto = reserva.monto_pagado + (monto_adicional || 0);
+    
+    let query = 'UPDATE reservas SET monto_pagado = ?';
+    let params = [nuevoMonto];
+
+    if (fecha_limite) {
+      query += ', fecha_limite = ?';
+      params.push(fecha_limite);
+    }
+
+    query += ' WHERE id = ?';
+    params.push(id);
+
+    db.run(query, params, function(err) {
+      if (err) {
+        return res.status(500).json({ message: 'Error al actualizar pago', error: err.message });
+      }
+
+      res.json({ 
+        message: 'Pago actualizado exitosamente',
+        nuevo_monto: nuevoMonto
+      });
+    });
   });
 });
 

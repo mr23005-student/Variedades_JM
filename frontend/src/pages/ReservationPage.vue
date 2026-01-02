@@ -64,7 +64,8 @@
           <div
             v-for="reservation in reservations"
             :key="reservation.id"
-            class="item"
+            class="item cursor-pointer"
+            @click="goToUpdateReservation(reservation.id)"
           >
             <div class="item-title">{{ reservation.cliente }} {{ reservation.telefono }}</div>
             <div class="item-date">{{ new Date(reservation.fecha_reserva).toLocaleDateString() }}</div>
@@ -113,11 +114,13 @@
 
 <script>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 
 export default {
   name: 'ReservationPage',
   setup() {
+    const router = useRouter()
     const loading = ref(false)
     const reservations = ref([])
     const currentPage = ref(1)
@@ -157,6 +160,11 @@ export default {
       }
     }
 
+    const goToUpdateReservation = (reservationId) => {
+      // Navegar a la página de actualización de reservas usando Vue Router
+      router.push(`/actualizar-reserva/${reservationId}`)
+    }
+
     onMounted(() => {
       fetchReservations()
     })
@@ -170,7 +178,8 @@ export default {
       filters,
       totalPages,
       fetchReservations,
-      changePage
+      changePage,
+      goToUpdateReservation
     }
   }
 }
@@ -192,6 +201,15 @@ export default {
 .item {
   padding: 12px 16px;
   border-bottom: 1px solid #e5e7eb;
+  transition: background-color 0.2s ease;
+}
+
+.item:hover {
+  background-color: #f3f4f6;
+}
+
+.cursor-pointer {
+  cursor: pointer;
 }
 
 .item-title {
