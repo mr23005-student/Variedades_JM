@@ -321,9 +321,9 @@ router.put('/:id/pago', (req, res) => {
             WHERE id_zapato = ?
           `;
 
-          console.log('📝 Ejecutando actualización de zapato...', {zapato_id: reserva.id_zapato, precio: reserva.precio_venta});
+          console.log('📝 Ejecutando actualización de zapato...', {zapato_id: reserva.id_zapato, precio_vendido_final: nuevoMonto});
 
-          db.run(updateZapatoQuery, [reserva.precio_venta, reserva.id_zapato], (err) => {
+          db.run(updateZapatoQuery, [nuevoMonto, reserva.id_zapato], (err) => {
             if (err) {
               console.error('❌ Error al actualizar zapato:', err);
               db.run('ROLLBACK');
@@ -339,9 +339,9 @@ router.put('/:id/pago', (req, res) => {
               VALUES (?, ?, ?, 'completada', 'venta')
             `;
 
-            console.log('📝 Creando registro de venta...', {cliente_id: reserva.id_cliente, fecha: fechaActual, total: reserva.precio_venta});
+            console.log('📝 Creando registro de venta...', {cliente_id: reserva.id_cliente, fecha: fechaActual, total_final: nuevoMonto});
 
-            db.run(insertVentaQuery, [reserva.id_cliente, fechaActual, reserva.precio_venta], function(err) {
+            db.run(insertVentaQuery, [reserva.id_cliente, fechaActual, nuevoMonto], function(err) {
               if (err) {
                 console.error('❌ Error al crear venta:', err);
                 db.run('ROLLBACK');
@@ -357,9 +357,9 @@ router.put('/:id/pago', (req, res) => {
                 VALUES (?, ?, ?, 'venta')
               `;
 
-              console.log('📝 Creando detalle de venta...', {venta_id: ventaId, zapato_id: reserva.id_zapato, precio: reserva.precio_venta});
+              console.log('📝 Creando detalle de venta...', {venta_id: ventaId, zapato_id: reserva.id_zapato, precio_vendido_final: nuevoMonto});
 
-              db.run(insertDetalleQuery, [ventaId, reserva.id_zapato, reserva.precio_venta], (err) => {
+              db.run(insertDetalleQuery, [ventaId, reserva.id_zapato, nuevoMonto], (err) => {
                 if (err) {
                   console.error('❌ Error al crear detalle de venta:', err);
                   db.run('ROLLBACK');
