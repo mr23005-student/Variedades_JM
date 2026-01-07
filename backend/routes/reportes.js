@@ -1154,9 +1154,12 @@ router.get('/years-disponibles', (req, res) => {
 
 // GET - Reportes guardados por año y mes
 router.get('/guardados', (req, res) => {
-  const { año, mes } = req.query;
+  const { año, ano, mes } = req.query;
+  const year = año || ano; // Aceptar ambos parámetros
 
-  if (!año || !mes) {
+  console.log('Buscando reportes guardados para:', { año, ano, year, mes });
+
+  if (!year || !mes) {
     return res.status(400).json({ message: 'Se requieren año y mes' });
   }
 
@@ -1169,12 +1172,13 @@ router.get('/guardados', (req, res) => {
       tipo
     FROM reportes 
     WHERE strftime('%Y', fecha) = ? 
-    AND strftime('%m', fecha) = ?
+    AND CAST(strftime('%m', fecha) AS INTEGER) = CAST(? AS INTEGER)
     AND tipo = 'mensual'
     ORDER BY fecha DESC
   `;
 
-  const params = [año.toString(), mes.toString().padStart(2, '0')];
+  const params = [year.toString(), mes.toString()];
+  console.log('Parámetros de búsqueda:', params);
 
   db.all(query, params, (err, reportes) => {
     if (err) {
@@ -1182,6 +1186,7 @@ router.get('/guardados', (req, res) => {
       return res.status(500).json({ message: 'Error al obtener reportes guardados', error: err.message });
     }
 
+    console.log(`Reportes encontrados: ${reportes ? reportes.length : 0}`);
     res.json(reportes || []);
   });
 });

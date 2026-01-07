@@ -160,6 +160,10 @@
                 filled
                 v-model="selectedYear"
                 :options="availableYears"
+                option-label="label"
+                option-value="value"
+                emit-value
+                map-options
                 label="Año"
                 @update:model-value="loadSavedReports"
               />
@@ -169,6 +173,10 @@
                 filled
                 v-model="selectedMonth"
                 :options="availableMonths"
+                option-label="label"
+                option-value="value"
+                emit-value
+                map-options
                 label="Mes"
                 @update:model-value="loadSavedReports"
               />
@@ -570,13 +578,18 @@ export default {
     async loadSavedReports() {
       if (!this.selectedYear || !this.selectedMonth) return;
 
+      console.log('Valores seleccionados:', { year: this.selectedYear, month: this.selectedMonth });
+
       try {
-        const response = await fetch(`http://localhost:3000/api/reportes/guardados?año=${this.selectedYear}&mes=${this.selectedMonth}`);
+        const url = `http://localhost:3000/api/reportes/guardados?${encodeURIComponent('año')}=${this.selectedYear}&mes=${this.selectedMonth}`;
+        console.log('URL de consulta:', url);
+        const response = await fetch(url);
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
         const reports = await response.json();
         this.savedReports = Array.isArray(reports) ? reports : [];
+        console.log('Reportes cargados:', this.savedReports);
       } catch (error) {
         console.error('Error cargando reportes guardados:', error);
         this.savedReports = [];
