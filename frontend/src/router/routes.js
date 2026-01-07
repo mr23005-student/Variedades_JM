@@ -1,0 +1,102 @@
+const routes = [
+  // Ruta principal - redirige al login
+  {
+    path: '/',
+    component: () => import('pages/LoginPage.vue'),
+  },
+
+  // Ruta de login
+  {
+    path: '/login',
+    component: () => import('pages/LoginPage.vue'),
+  },
+
+  // Ruta de registro
+  {
+    path: '/register',
+    component: () => import('pages/RegisterPage.vue'),
+  },
+
+  // Página principal después del login
+  {
+    path: '/main',
+    component: () => import('pages/MainPage.vue'),
+    meta: { requiresAuth: true }
+  },
+
+  // Página para agregar zapatos
+  {
+    path: '/agregar-zapato',
+    component: () => import('pages/AddShoe.vue'),
+    meta: { requiresAuth: true }
+  },
+
+  // Página para agregar clientes
+  {
+    path: '/agregar-cliente',
+    component: () => import('pages/AddClient.vue'),
+    meta: { requiresAuth: true }
+  },
+
+  // Página de inventario
+  {
+    path: '/inventario',
+    component: () => import('pages/InventarioPage.vue'),
+    meta: { requiresAuth: true }
+  },
+
+  // Página para editar zapatos
+  {
+    path: '/editar-zapato/:id',
+    component: () => import('pages/EditShoe.vue'),
+    meta: { requiresAuth: true }
+  },
+  //Página para ver los reportes
+  {
+    path: '/reportes',
+    component: () => import('pages/ReportesPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  // Página de ventas
+  {
+    path: '/ventas',
+    component: () => import('pages/VentasPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  // Página de reservaciones
+  {
+    path: '/reservaciones',
+    component: () => import('pages/ReservationPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  // Página para actualizar reservas
+  {
+    path: '/actualizar-reserva/:id',
+    component: () => import('pages/ActualizacionReservasPage.vue'),
+    meta: { requiresAuth: true }
+  },
+  // Página de historial de ventas
+   {
+    path: '/historial-ventas',
+    component: () => import('pages/HistorialVentasPage.vue'),
+    meta: { requiresAuth: true }
+  },
+
+  // Ruta del dashboard (para uso futuro)
+  {
+    path: '/dashboard',
+    component: () => import('layouts/MainLayout.vue'),
+    children: [
+      { path: '', component: () => import('pages/IndexPage.vue') },
+    ],
+  },
+
+  // Always leave this as last one,
+  // but you can also remove it
+  {
+    path: '/:catchAll(.*)*',
+    component: () => import('pages/ErrorNotFound.vue'),
+  },
+];
+
+export default routes;
