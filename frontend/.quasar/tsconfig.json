@@ -74,6 +74,24 @@
       ],
       "#q-app/bex/private/bex-bridge": [
         "./../node_modules/@quasar/app-vite/types/bex/bex-bridge.d.ts"
+      ],
+      "@capacitor/android": [
+        "./../src-capacitor/node_modules/@capacitor/android"
+      ],
+      "@capacitor/android/*": [
+        "./../src-capacitor/node_modules/@capacitor/android/*"
+      ],
+      "@capacitor/cli": [
+        "./../src-capacitor/node_modules/@capacitor/cli"
+      ],
+      "@capacitor/cli/*": [
+        "./../src-capacitor/node_modules/@capacitor/cli/*"
+      ],
+      "@capacitor/core": [
+        "./../src-capacitor/node_modules/@capacitor/core"
+      ],
+      "@capacitor/core/*": [
+        "./../src-capacitor/node_modules/@capacitor/core/*"
       ]
     }
   },

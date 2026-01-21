@@ -101,6 +101,7 @@ import { ref, reactive } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import API_CONFIG from '../config/api.js'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -123,7 +124,7 @@ const handleLogin = async () => {
   successMessage.value = ''
 
   try {
-    const response = await axios.post('http://localhost:3000/api/auth/login', {
+    const response = await axios.post(`${API_CONFIG.getBaseUrl()}/api/auth/login`, {
       username: credentials.username,
       password: credentials.password
     })

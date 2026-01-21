@@ -101,7 +101,11 @@ public
 /src-capacitor/node_modules
 
 # Database
-*.sqlite
+# *.sqlite  # Comentado para permitir que database.sqlite se suba al repo
+# Pero excluir otros archivos de base de datos temporales
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 
 # IDE
 .idea/

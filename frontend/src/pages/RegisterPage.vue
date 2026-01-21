@@ -154,6 +154,7 @@ import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import axios from 'axios'
+import API_CONFIG from '../config/api.js'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -194,7 +195,7 @@ const handleRegister = async () => {
       masterPassword: '***'
     })
 
-    const response = await axios.post('http://localhost:3000/api/auth/register', {
+    const response = await axios.post(`${API_CONFIG.getBaseUrl()}/api/auth/register`, {
       username: userData.username,
       password: userData.password,
       masterPassword: userData.masterPassword
