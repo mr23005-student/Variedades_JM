@@ -79,6 +79,13 @@ app.get('/', (req, res) => {
   });
 });
 
+// Endpoint temporal para verificar/inicializar la base de datos
+app.get('/init-db', (req, res) => {
+  const { createTables } = require('./database/database');
+  createTables();
+  res.json({ message: 'Base de datos inicializada' });
+});
+
 // Manejo de errores global
 app.use((err, req, res, next) => {
   console.error(err.stack);

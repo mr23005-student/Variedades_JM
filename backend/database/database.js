@@ -170,4 +170,4 @@ const testDatabase = () => {
 
 testDatabase();
 
-module.exports = db;
+module.exports = { db, createTables };
