@@ -97,7 +97,7 @@ app.get('/init-db', (req, res) => {
 
 // Endpoint temporal para verificar usuarios
 app.get('/check-users', (req, res) => {
-  const { db } = require('./database/database');
+  const db = require('./database/database');
   db.all('SELECT id, username FROM users', [], (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
