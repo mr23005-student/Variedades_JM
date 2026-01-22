@@ -81,9 +81,18 @@ app.get('/', (req, res) => {
 
 // Endpoint temporal para verificar/inicializar la base de datos
 app.get('/init-db', (req, res) => {
-  const { createTables } = require('./database/database');
-  createTables();
-  res.json({ message: 'Base de datos inicializada' });
+  try {
+    const db = require('./database/database');
+    res.json({ 
+      message: 'Endpoint funcionando - la base de datos se inicializa automáticamente al importar el módulo',
+      status: 'OK'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Error al acceder a la base de datos',
+      error: error.message
+    });
+  }
 });
 
 // Manejo de errores global
