@@ -168,6 +168,43 @@ const testDatabase = () => {
   });
 };
 
+// Crear usuario administrador por defecto
+const createDefaultAdmin = () => {
+  const bcrypt = require('bcrypt');
+  
+  // Verificar si ya existe el usuario admin
+  db.get('SELECT id FROM users WHERE username = ?', ['admin'], (err, row) => {
+    if (err) {
+      console.error('Error al verificar usuario admin:', err.message);
+      return;
+    }
+    
+    if (!row) {
+      // No existe el usuario admin, crearlo
+      const saltRounds = 10;
+      bcrypt.hash('admin123', saltRounds, (err, hashedPassword) => {
+        if (err) {
+          console.error('Error al hashear contraseña:', err.message);
+          return;
+        }
+        
+        db.run('INSERT INTO users (username, password) VALUES (?, ?)', 
+               ['admin', hashedPassword], 
+               function(err) {
+          if (err) {
+            console.error('Error al crear usuario admin:', err.message);
+          } else {
+            console.log('✅ Usuario admin creado automáticamente con ID:', this.lastID);
+          }
+        });
+      });
+    } else {
+      console.log('✅ Usuario admin ya existe');
+    }
+  });
+};
+
 testDatabase();
+createDefaultAdmin();
 
 module.exports = db;
