@@ -80,6 +80,16 @@ app.get('/', (req, res) => {
   });
 });
 
+// ENDPOINT DE PRUEBA SIMPLE
+app.get('/test', (req, res) => {
+  console.log('🧪 TEST - Petición recibida desde:', req.headers['user-agent']);
+  res.json({ 
+    status: 'OK', 
+    message: 'Conexión exitosa desde app móvil',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Endpoint temporal para verificar/inicializar la base de datos
 app.get('/init-db', (req, res) => {
   try {
