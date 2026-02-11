@@ -1,0 +1,1 @@
+const e={DEV_BASE_URL:"http://localhost:3000",MOBILE_BASE_URL:"http://192.168.1.27:3000",PRODUCTION_BASE_URL:"https://variedades-jm.onrender.com",getBaseUrl:()=>(console.log("🚀 FORZANDO servidor de producción en Render"),console.log("🌍 URL: https://variedades-jm.onrender.com"),"https://variedades-jm.onrender.com")};export{e as A};

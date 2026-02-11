@@ -11,18 +11,10 @@ const API_CONFIG = {
 
   // Obtener la URL base correcta
   getBaseUrl: () => {
-    // FORZAR SIEMPRE el servidor de producción para apps móviles
-    const isWebBrowser = window.location.protocol === 'http:' || window.location.protocol === 'https:';
-
-    if (!isWebBrowser) {
-      // Estamos en una app empaquetada (Capacitor) - USAR RENDER
-      console.log('🚀 App móvil - Usando servidor de producción en Render');
-      return API_CONFIG.PRODUCTION_BASE_URL;
-    }
-
-    // Estamos en navegador web normal
-    console.log('🌐 Usando localhost para navegador web');
-    return API_CONFIG.DEV_BASE_URL;
+    // FORZAR SIEMPRE RENDER para apps compiladas con Capacitor
+    console.log('🚀 FORZANDO servidor de producción en Render');
+    console.log('🌍 URL: https://variedades-jm.onrender.com');
+    return 'https://variedades-jm.onrender.com';
   }
 };
 

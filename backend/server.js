@@ -32,11 +32,12 @@ const PORT = process.env.PORT || 3000;
 // Middleware de seguridad
 app.use(securityHeaders);
 
-// CORS
+// CORS - Permitir conexiones desde apps móviles
 app.use(cors({
-  origin: ['http://localhost:9000', 'http://localhost:8080'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
+  origin: '*', // Permitir todas las conexiones para apps móviles
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: false,
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Parsers
